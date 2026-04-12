@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emissor Pro - Seleção de Veículo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .form-card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .input-group label { display: block; font-size: 0.75rem; font-weight: 600; color: #4b5563; margin-bottom: 4px; text-transform: uppercase; }
+        .input-group input, .input-group select { 
+            width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+        .input-group input:focus { outline: none; border-color: #2563eb; ring: 2px solid #bfdbfe; }
+        .template-select { border: 2px solid #2563eb !important; background-color: #eff6ff !important; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800 tracking-tight">Emissão de CRLV-e</h1>
+                <p class="text-sm text-gray-500">Selecione o PDF base e preencha os dados</p>
+            </div>
+            <div class="flex gap-2">
+                <span class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs font-bold uppercase">Automático</span>
+                <span class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold uppercase">PDF Base</span>
+            </div>
+        </header>
+
+        <!-- Seleção de Template (PDF Base) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div id="btnCarro" onclick="setTemplate('carro')" class="form-card p-4 flex items-center gap-4 cursor-pointer border-2 border-transparent transition-all hover:border-blue-300">
+                <div class="bg-blue-100 p-3 rounded-full text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                </div>
+                <div>
+                    <p class="font-bold text-gray-800">Template Carro</p>
+                    <p class="text-xs text-gray-500">Usa o PDF original de veículo (4 rodas)</p>
+                </div>
+            </div>
+            <div id="btnMoto" onclick="setTemplate('moto')" class="form-card p-4 flex items-center gap-4 cursor-pointer border-2 border-transparent transition-all hover:border-blue-300">
+                <div class="bg-indigo-100 p-3 rounded-full text-indigo-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <div>
+                    <p class="font-bold text-gray-800">Template Moto</p>
+                    <p class="text-xs text-gray-500">Usa o PDF original de motocicleta</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Área de Importação Rápida -->
+        <div class="form-card p-6 mb-6">
+            <div class="flex items-center gap-2 mb-4 text-blue-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                </svg>
+                <h2 class="font-bold">Colar Dados (OCR)</h2>
+            </div>
+            <textarea 
+                id="importArea" 
+                class="w-full h-20 p-3 border rounded-lg bg-gray-50 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="Cole o texto aqui para preencher automaticamente..."
+                oninput="processarTexto(this.value)"
+            ></textarea>
+        </div>
+
+        <form action="/api/gerar-final" method="POST" id="formCrlv">
+            <!-- Campo oculto para enviar o tipo de template selecionado -->
+            <input type="hidden" name="tipo_template" id="tipo_template" value="carro">
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- Coluna 1: Dados do Veículo -->
+                <div class="form-card p-6 flex flex-col gap-4">
+                    <h3 class="font-bold text-gray-700 border-b pb-2 mb-2">Identificação</h3>
+                    
+                    <div class="input-group">
+                        <label>Placa</label>
+                        <input type="text" name="placa" id="placa" maxlength="7" placeholder="ABC1D23">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Código RENAVAM</label>
+                        <input type="text" name="renavam" id="renavam" maxlength="11" placeholder="00000000000">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Número do Chassi</label>
+                        <input type="text" name="chassi" id="chassi" placeholder="Digite o chassi completo">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Número do Motor</label>
+                        <input type="text" name="motor" id="motor" placeholder="Número do Motor">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Número do CRV</label>
+                        <input type="text" name="numero_crv" id="numero_crv" placeholder="Localizado acima do QR Code">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="input-group">
+                            <label>Exercício</label>
+                            <input type="text" name="exercicio" id="exercicio" value="2025">
+                        </div>
+                        <div class="input-group">
+                            <label>Combustível</label>
+                            <input type="text" name="combustivel" id="combustivel" placeholder="ALCOOL/GASOL">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna 2: Características -->
+                <div class="form-card p-6 flex flex-col gap-4">
+                    <h3 class="font-bold text-gray-700 border-b pb-2 mb-2">Características</h3>
+                    
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="input-group">
+                            <label>Ano Fabricação</label>
+                            <input type="text" name="ano_fabricacao" id="ano_fabricacao" placeholder="Ex: 2024">
+                        </div>
+                        <div class="input-group">
+                            <label>Ano Modelo</label>
+                            <input type="text" name="ano_modelo" id="ano_modelo" placeholder="Ex: 2025">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Marca / Modelo / Versão</label>
+                        <input type="text" name="marca_modelo" id="marca_modelo" placeholder="Ex: RENAULT/KWID">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Cor Predominante</label>
+                        <input type="text" name="cor" id="cor" placeholder="Ex: BRANCA">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Categoria</label>
+                        <input type="text" name="categoria" id="categoria" value="PARTICULAR">
+                    </div>
+                </div>
+
+                <!-- Coluna 3: Proprietário -->
+                <div class="form-card p-6 flex flex-col gap-4">
+                    <h3 class="font-bold text-gray-700 border-b pb-2 mb-2">Proprietário & Emissão</h3>
+
+                    <div class="input-group">
+                        <label>Nome do Proprietário</label>
+                        <input type="text" name="nome" id="nome" placeholder="NOME COMPLETO">
+                    </div>
+
+                    <div class="input-group">
+                        <label>CPF / CNPJ</label>
+                        <input type="text" name="cpf_cnpj" id="cpf_cnpj" placeholder="000.000.000-00">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Código Segurança CLA</label>
+                        <input type="text" name="cod_seguranca" id="cod_seguranca" placeholder="11 dígitos">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="input-group">
+                            <label>Local de Emissão</label>
+                            <input type="text" name="local" id="local" value="BRASILIA - DF">
+                        </div>
+                        <div class="input-group">
+                            <label>Data</label>
+                            <input type="text" name="data" id="data" placeholder="DD/MM/AAAA">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg shadow-md transition-all mt-auto transform active:scale-95 flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd" />
+                        </svg>
+                        GERAR DOCUMENTO FINAL
+                    </button>
+                </div>
+
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function setTemplate(tipo) {
+            document.getElementById('tipo_template').value = tipo;
+            document.getElementById('btnCarro').classList.remove('template-select');
+            document.getElementById('btnMoto').classList.remove('template-select');
+            
+            if(tipo === 'carro') document.getElementById('btnCarro').classList.add('template-select');
+            else document.getElementById('btnMoto').classList.add('template-select');
+        }
+
+        // Inicializa com carro selecionado
+        setTemplate('carro');
+
+        function processarTexto(texto) {
+            if (!texto) return;
+            const txt = texto.toUpperCase().replace(/[\t\n\r]/g, " ");
+
+            const renavamMatch = txt.match(/RENAVAM\s*(\d{11})/i) || txt.match(/\b(\d{11})\b/);
+            if (renavamMatch) document.getElementById('renavam').value = renavamMatch[1];
+
+            const placaMatch = txt.match(/\b([A-Z]{3}[0-9][A-Z0-9][0-9]{2})\b/);
+            if (placaMatch) document.getElementById('placa').value = placaMatch[1];
+
+            const chassiMatch = txt.match(/\b([A-Z0-9]{17})\b/);
+            if (chassiMatch) document.getElementById('chassi').value = chassiMatch[1];
+
+            const motorMatch = txt.match(/MOTOR\s*([A-Z0-9]+)/i);
+            if (motorMatch) document.getElementById('motor').value = motorMatch[1];
+
+            const crvMatch = txt.match(/CRV\s*(\d+)/i) || txt.match(/NÚMERO DO CRV\s*(\d+)/i);
+            if (crvMatch) document.getElementById('numero_crv').value = crvMatch[1];
+
+            const cpfMatch = txt.match(/\b(\d{3}\.\d{3}\.\d{3}-\d{2})\b/) || txt.match(/\b(\d{11})\b/);
+            if (cpfMatch) document.getElementById('cpf_cnpj').value = cpfMatch[1];
+
+            const nomeMatch = txt.match(/NOME\s*([A-Z\s]{5,60})(?=CPF|CNPJ|LOCAL|$)/i);
+            if (nomeMatch) document.getElementById('nome').value = nomeMatch[1].trim();
+
+            const dataMatch = txt.match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
+            if (dataMatch) document.getElementById('data').value = dataMatch[1];
+        }
+    </script>
+</body>
+</html>

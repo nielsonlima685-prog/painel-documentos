@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Calibração | CH Contas</title>
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <style>
+        body { 
+            background-color: #0f172a; 
+            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; 
+            overflow: hidden; 
+        }
+        
+        /* Área de scroll para o PDF */
+        #viewport {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 60px;
+            background: #020617;
+        }
+
+        /* Container que sofre o Zoom */
+        #zoom-wrapper {
+            transform-origin: top center;
+            transition: transform 0.2s ease-out;
+            position: relative;
+        }
+
+        /* Tamanho A4 Real em Pixels (96 DPI) */
+        #pdf-container {
+            position: relative;
+            width: 595px; 
+            height: 842px;
+            background: white;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.1), 0 20px 50px rgba(0,0,0,0.8);
+            overflow: hidden;
+        }
+
+        #pdf-render {
+            width: 100%;
+            height: 100%;
+            border: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            background: white;
+        }
+
+        /* Camada de Arraste por cima de tudo */
+        #drag-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        .draggable-field {
+            position: absolute;
+            background: rgba(16, 185, 129, 0.7);
+            border: 2px solid #10b981;
+            color: white;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 8px;
+            cursor: move;
+            border-radius: 4px;
+            white-space: nowrap;
+            user-select: none;
+            pointer-events: auto;
+            text-shadow: 1px 1px 0px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: background 0.2s;
+        }
+
+        .draggable-field:hover {
+            background: rgba(16, 185, 129, 0.9);
+            z-index: 60;
+        }
+
+        .draggable-field.is-dragging {
+            background: rgba(59, 130, 246, 0.9);
+            border-color: #3b82f6;
+            z-index: 100;
+            transform: scale(1.05);
+        }
+
+        /* Estado de Erro no PDF */
+        #pdf-error-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: #f8fafc;
+            color: #64748b;
+            z-index: 20;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; border: 2px solid #0f172a; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="text-slate-200">
+
+    <div class="flex flex-col h-screen">
+        <!-- Header -->
+        <header class="bg-slate-800 border-b border-slate-700 p-3 flex justify-between items-center z-50 shadow-lg">
+            <div class="flex items-center space-x-6">
+                <h1 class="text-sm font-bold tracking-tight">CH CONTAS <span class="text-slate-400 font-normal">| CALIBRADOR CRLV</span></h1>
+                
+                <!-- Controles de Zoom -->
+                <div class="flex items-center bg-slate-900 rounded-lg p-1 border border-slate-700">
+                    <button onclick="changeZoom(-0.1)" class="px-3 py-1 hover:bg-slate-700 rounded text-lg focus:outline-none transition-colors">-</button>
+                    <span id="zoom-label" class="px-4 text-xs font-mono w-16 text-center text-blue-400 font-bold">100%</span>
+                    <button onclick="changeZoom(0.1)" class="px-3 py-1 hover:bg-slate-700 rounded text-lg focus:outline-none transition-colors">+</button>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div id="save-status" class="text-[10px] font-mono text-slate-400 bg-slate-900 px-4 py-1.5 rounded-full border border-slate-700">
+                    Aguardando...
+                </div>
+                <button onclick="reloadPDF()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-xs font-bold transition-all shadow-lg active:scale-95">
+                    Recarregar PDF
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Sidebar -->
+            <aside class="w-72 bg-slate-800 border-r border-slate-700 flex flex-col shadow-xl">
+                <div class="p-4 border-b border-slate-700 bg-slate-800/50">
+                    <h2 class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Coordenadas (PDF-Lib)</h2>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto p-3 space-y-2" id="fields-list">
+                    <div class="text-center py-10 text-slate-500 text-xs animate-pulse">Carregando campos...</div>
+                </div>
+
+                <div class="p-4 bg-slate-900 border-t border-slate-700">
+                    <p class="text-[10px] text-slate-400 leading-relaxed italic">
+                        Nota: O eixo Y é invertido no PDF (0 é a base da folha). O painel faz a conversão automática.
+                    </p>
+                </div>
+            </aside>
+
+            <!-- Área de Trabalho -->
+            <main id="viewport">
+                <div id="zoom-wrapper">
+                    <div id="pdf-container">
+                        <!-- Camada de Erro -->
+                        <div id="pdf-error-overlay">
+                            <p class="font-bold text-slate-800 mb-2">Visualização do PDF Indisponível</p>
+                            <p class="text-xs mb-4">Certifique-se que o servidor está rodando.</p>
+                            <button onclick="reloadPDF()" class="bg-slate-200 px-4 py-2 rounded text-xs font-bold hover:bg-slate-300">Tentar Novamente</button>
+                        </div>
+
+                        <!-- O PDF REAL GERADO -->
+                        <iframe id="pdf-render" src="/gerar-crlv"></iframe>
+                        
+                        <!-- Marcadores -->
+                        <div id="drag-layer"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const containerHeight = 842;
+        let currentZoom = 1.0;
+        
+        const dragLayer = document.getElementById('drag-layer');
+        const zoomWrapper = document.getElementById('zoom-wrapper');
+        const zoomLabel = document.getElementById('zoom-label');
+        const pdfRender = document.getElementById('pdf-render');
+        const saveStatus = document.getElementById('save-status');
+        const fieldsList = document.getElementById('fields-list');
+        const errorOverlay = document.getElementById('pdf-error-overlay');
+
+        function getApiUrl(path) {
+            return `${window.location.origin}${path.startsWith('/') ? path : '/' + path}`;
+        }
+
+        function reloadPDF() {
+            errorOverlay.style.display = 'none';
+            const timestamp = new Date().getTime();
+            pdfRender.src = getApiUrl(`/gerar-crlv?t=${timestamp}`);
+        }
+
+        function changeZoom(delta) {
+            currentZoom = Math.min(Math.max(0.4, currentZoom + delta), 3.0);
+            zoomWrapper.style.transform = `scale(${currentZoom})`;
+            zoomLabel.innerText = `${Math.round(currentZoom * 100)}%`;
+        }
+
+        async function init() {
+            let coords = {};
+            try {
+                saveStatus.innerText = "Buscando coordenadas...";
+                const response = await fetch(getApiUrl('/api/coords'));
+                
+                if (response.ok) {
+                    coords = await response.json();
+                }
+            } catch (error) {
+                console.error("Falha API:", error);
+                saveStatus.innerText = "Modo Offline";
+            } finally {
+                renderFields(coords);
+            }
+        }
+
+        function renderFields(coords) {
+            const defaultKeys = [
+                'renavam', 'placa', 'exercicio', 'ano_fabricacao', 'marca_modelo', 
+                'ano_modelo', 'nome', 'cpf_cnpj', 'local', 'chassi', 'motor', 
+                'codigo_seguranca', 'numero_crv', 'combustivel', 'cor', 'data'
+            ];
+
+            const allKeys = [...new Set([...Object.keys(coords), ...defaultKeys])];
+            dragLayer.innerHTML = '';
+            fieldsList.innerHTML = '';
+
+            allKeys.forEach(key => {
+                const pos = coords[key] || { x: 50, y: 700 };
+                
+                const div = document.createElement('div');
+                div.className = 'draggable-field';
+                div.id = `drag-${key}`;
+                div.innerText = key.toUpperCase();
+                div.style.left = `${pos.x}px`;
+                // Inversão Y: PDF (base->topo) para CSS (topo->base)
+                div.style.top = `${containerHeight - pos.y - 12}px`;
+                div.setAttribute('data-key', key);
+                dragLayer.appendChild(div);
+
+                const item = document.createElement('div');
+                item.className = 'p-2 bg-slate-700/50 rounded border border-slate-600 flex justify-between items-center';
+                item.innerHTML = `
+                    <span class="text-[9px] font-bold text-slate-300">${key.toUpperCase()}</span>
+                    <span class="text-[9px] font-mono text-blue-400" id="label-${key}">${Math.round(pos.x)}, ${Math.round(pos.y)}</span>
+                `;
+                fieldsList.appendChild(item);
+            });
+
+            setupInteract();
+            saveStatus.innerText = "Pronto para ajustar";
+        }
+
+        function setupInteract() {
+            interact('.draggable-field').draggable({
+                inertia: false,
+                listeners: {
+                    start(event) {
+                        event.target.classList.add('is-dragging');
+                    },
+                    move(event) {
+                        const target = event.target;
+                        const x = (parseFloat(target.style.left) || 0) + (event.dx / currentZoom);
+                        const y = (parseFloat(target.style.top) || 0) + (event.dy / currentZoom);
+
+                        target.style.left = `${x}px`;
+                        target.style.top = `${y}px`;
+                        saveStatus.innerText = "Movendo...";
+                    },
+                    end(event) {
+                        const target = event.target;
+                        target.classList.remove('is-dragging');
+
+                        const key = target.getAttribute('data-key');
+                        const visualX = parseFloat(target.style.left);
+                        const visualY = parseFloat(target.style.top);
+
+                        const pdfX = Math.round(visualX * 10) / 10;
+                        const pdfY = Math.round((containerHeight - visualY - 12) * 10) / 10;
+
+                        document.getElementById(`label-${key}`).innerText = `${Math.round(pdfX)}, ${Math.round(pdfY)}`;
+                        saveToServer(key, pdfX, pdfY);
+                    }
+                }
+            });
+        }
+
+        async function saveToServer(key, x, y) {
+            saveStatus.innerText = "Salvando...";
+            try {
+                const res = await fetch(getApiUrl('/api/save-coords'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [key]: { x, y, w: 120 } })
+                });
+                
+                if (res.ok) {
+                    saveStatus.innerText = "Sincronizado";
+                    // Recarrega o PDF para ver o texto preto movendo junto com o marcador
+                    reloadPDF();
+                }
+            } catch (err) {
+                saveStatus.innerText = "Erro de conexão";
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

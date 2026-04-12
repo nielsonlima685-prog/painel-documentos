@@ -1,0 +1,5 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+3.  **Execute o comando:** No seu terminal, corra:
+`npm run build`

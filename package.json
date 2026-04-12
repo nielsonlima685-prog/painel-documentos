@@ -1,0 +1,14 @@
+{
+  "name": "painel-documentos",
+  "version": "1.0.0",
+  "description": "Sistema de emissão de CRLV com controle de usuários",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "pdf-lib": "^1.17.1"
+  }
+}

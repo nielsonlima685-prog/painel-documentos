@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Usuários | MIND PRO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #09090b;
+            color: #fafafa;
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background: rgba(24, 24, 27, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(63, 63, 70, 0.4);
+            transition: all 0.2s ease-in-out;
+        }
+        .sidebar {
+            border-right: 1px solid rgba(63, 63, 70, 0.4);
+        }
+        .active-link {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border-left: 3px solid #3b82f6;
+        }
+        .sidebar-link {
+            transition: all 0.2s;
+        }
+        .sidebar-link:hover {
+            background: rgba(39, 39, 42, 0.5);
+        }
+        .user-row:hover {
+            background: rgba(39, 39, 42, 0.5);
+        }
+        input, select {
+            background: #18181b !important;
+            border: 1px solid #3f3f46 !important;
+            color: white !important;
+        }
+        input:focus, select:focus {
+            border-color: #3b82f6 !important;
+            outline: none;
+            ring: 2px solid #3b82f6;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-64 sidebar flex flex-col bg-[#09090b] z-20">
+        <div class="p-6">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-brain text-white text-sm"></i>
+                </div>
+                <span class="text-xl font-bold tracking-tighter">MIND <span class="text-blue-500">PRO</span></span>
+            </div>
+        </div>
+
+        <nav class="flex-1 px-4 space-y-2 mt-4">
+            <a href="/home" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all">
+                <i class="fas fa-home w-5"></i>
+                <span class="font-medium text-sm">Dashboard</span>
+            </a>
+            <a href="/emissao" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all">
+                <i class="fas fa-file-invoice w-5"></i>
+                <span class="font-medium text-sm">Emissão CRLV</span>
+            </a>
+            <a href="/calibrar" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all">
+                <i class="fas fa-crosshairs w-5"></i>
+                <span class="font-medium text-sm">Calibrador</span>
+            </a>
+            
+            <div class="pt-6">
+                <p class="px-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Administração</p>
+                <a href="/usuarios" class="sidebar-link active-link flex items-center gap-3 px-4 py-3 rounded-lg transition-all">
+                    <i class="fas fa-users-cog w-5"></i>
+                    <span class="font-medium text-sm">Gerir Usuários</span>
+                </a>
+            </div>
+        </nav>
+
+        <div class="p-4 border-t border-zinc-800">
+            <button onclick="window.location.href='/logout'" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-400/10 transition-all">
+                <i class="fas fa-sign-out-alt w-5"></i>
+                <span class="font-medium text-sm">Sair</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col overflow-hidden relative">
+        <!-- Header -->
+        <header class="h-16 border-b border-zinc-800 flex items-center justify-between px-8 bg-[#09090b]/50 backdrop-blur-md z-10">
+            <div class="flex items-center gap-4">
+                <h2 class="text-lg font-semibold text-zinc-100">Controle de Acesso</h2>
+                <span id="user-count" class="px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700 font-bold uppercase">0 Usuários</span>
+            </div>
+            
+            <button onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+                <i class="fas fa-plus"></i> Novo Usuário
+            </button>
+        </header>
+
+        <!-- Container -->
+        <div class="flex-1 overflow-y-auto p-8">
+            <div class="max-w-5xl mx-auto space-y-6">
+                
+                <!-- Info Section -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="glass-card p-5 rounded-2xl">
+                        <p class="text-zinc-500 text-xs font-bold uppercase tracking-wider">Total de Usuários</p>
+                        <h4 id="total-users" class="text-2xl font-bold mt-1">0</h4>
+                        <p class="text-emerald-500 text-[10px] font-bold mt-2"><i class="fas fa-database"></i> Banco JSON</p>
+                    </div>
+                    <div class="glass-card p-5 rounded-2xl">
+                        <p class="text-zinc-500 text-xs font-bold uppercase tracking-wider">Administradores</p>
+                        <h4 id="admin-count" class="text-2xl font-bold mt-1">0</h4>
+                        <p class="text-blue-500 text-[10px] font-bold mt-2">Acesso total</p>
+                    </div>
+                    <div class="glass-card p-5 rounded-2xl">
+                        <p class="text-zinc-500 text-xs font-bold uppercase tracking-wider">Operadores</p>
+                        <h4 id="user-count-total" class="text-2xl font-bold mt-1">0</h4>
+                        <p class="text-zinc-500 text-[10px] font-bold mt-2">Apenas emissão</p>
+                    </div>
+                </div>
+
+                <!-- Users Table -->
+                <div class="glass-card rounded-2xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="border-b border-zinc-800 bg-zinc-900/50">
+                                    <th class="px-6 py-4 text-xs font-bold uppercase text-zinc-500">Usuário</th>
+                                    <th class="px-6 py-4 text-xs font-bold uppercase text-zinc-500">Nível</th>
+                                    <th class="px-6 py-4 text-xs font-bold uppercase text-zinc-500">Criado em</th>
+                                    <th class="px-6 py-4 text-right text-xs font-bold uppercase text-zinc-500">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-list">
+                                <tr>
+                                    <td colspan="4" class="px-6 py-8 text-center text-zinc-500">
+                                        <i class="fas fa-spinner fa-spin mr-2"></i> Carregando usuários...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <p class="text-center text-[10px] text-zinc-600 uppercase tracking-widest font-bold pt-4">
+                    © 2026 CH SISTEMAS - Todos os registros são auditados
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Adicionar/Editar Usuário -->
+    <div id="modal-usuario" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="glass-card w-full max-w-md p-8 rounded-3xl space-y-6">
+            <div class="flex justify-between items-center">
+                <h3 id="modal-title" class="text-xl font-bold">Novo Usuário</h3>
+                <button onclick="closeModal()" class="text-zinc-500 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <form id="user-form" class="space-y-4">
+                <input type="hidden" id="user-id">
+                <div>
+                    <label class="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Usuário *</label>
+                    <input type="text" id="username" class="w-full px-4 py-3 rounded-xl outline-none" placeholder="Ex: novo_usuario" required>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Nome</label>
+                    <input type="text" id="nome" class="w-full px-4 py-3 rounded-xl outline-none" placeholder="Ex: João Silva">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Senha *</label>
+                    <input type="password" id="password" class="w-full px-4 py-3 rounded-xl outline-none" placeholder="••••••••" required>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Nível de Permissão</label>
+                    <select id="role" class="w-full px-4 py-3 rounded-xl outline-none appearance-none">
+                        <option value="user">Operador (Apenas Emissão)</option>
+                        <option value="admin">Administrador (Acesso Total)</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold transition-all mt-4 shadow-lg shadow-blue-900/20">
+                    <i class="fas fa-save mr-2"></i> Salvar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden glass-card px-6 py-3 rounded-xl flex items-center gap-3"></div>
+
+    <script>
+        let currentUserRole = null;
+
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/usuarios');
+                if (!response.ok) throw new Error('Erro ao carregar');
+                const users = await response.json();
+                
+                const tbody = document.getElementById('user-list');
+                const totalUsers = users.length;
+                const adminCount = users.filter(u => u.role === 'admin').length;
+                const operadorCount = users.filter(u => u.role === 'user').length;
+                
+                document.getElementById('total-users').innerText = totalUsers;
+                document.getElementById('admin-count').innerText = adminCount;
+                document.getElementById('user-count-total').innerText = operadorCount;
+                document.getElementById('user-count').innerText = `${totalUsers} Usuários`;
+                
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-8 text-center text-zinc-500">Nenhum usuário cadastrado</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = users.map(user => `
+                    <tr class="user-row border-b border-zinc-800 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg ${user.role === 'admin' ? 'bg-blue-600/20 text-blue-500' : 'bg-purple-600/20 text-purple-500'} flex items-center justify-center font-bold text-xs">
+                                    ${user.user.substring(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                    <p class="text-sm font-bold text-white">${user.user}</p>
+                                    <p class="text-[10px] text-zinc-500">${user.nome || user.user}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded-md ${user.role === 'admin' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-purple-500/10 text-purple-400 border-purple-500/20'} text-[10px] font-bold uppercase border">
+                                ${user.role === 'admin' ? 'Master' : 'Operador'}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-zinc-400 text-xs">
+                            ${new Date(user.createdAt).toLocaleDateString('pt-BR')}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="editUser(${user.id}, '${user.user}', '${user.nome || ''}', '${user.role}')" class="p-2 text-zinc-500 hover:text-white transition-colors">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="deleteUser(${user.id}, '${user.user}')" class="p-2 text-zinc-500 hover:text-red-500 transition-colors">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao carregar usuários', 'error');
+            }
+        }
+
+        function openAddModal() {
+            document.getElementById('modal-title').innerText = 'Novo Usuário';
+            document.getElementById('user-id').value = '';
+            document.getElementById('username').value = '';
+            document.getElementById('nome').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('password').required = true;
+            document.getElementById('role').value = 'user';
+            document.getElementById('modal-usuario').classList.remove('hidden');
+        }
+
+        function editUser(id, username, nome, role) {
+            document.getElementById('modal-title').innerText = 'Editar Usuário';
+            document.getElementById('user-id').value = id;
+            document.getElementById('username').value = username;
+            document.getElementById('nome').value = nome || '';
+            document.getElementById('password').value = '';
+            document.getElementById('password').required = false;
+            document.getElementById('role').value = role;
+            document.getElementById('modal-usuario').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-usuario').classList.add('hidden');
+        }
+
+        async function deleteUser(id, username) {
+            if (confirm(`Tem certeza que deseja excluir o usuário "${username}"?`)) {
+                try {
+                    const response = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showToast(`Usuário "${username}" excluído com sucesso!`, 'success');
+                        loadUsers();
+                    } else {
+                        showToast(result.error || 'Erro ao excluir', 'error');
+                    }
+                } catch (error) {
+                    showToast('Erro ao excluir usuário', 'error');
+                }
+            }
+        }
+
+        document.getElementById('user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('user-id').value;
+            const user = document.getElementById('username').value;
+            const nome = document.getElementById('nome').value;
+            const pass = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            
+            if (!user) {
+                showToast('Usuário é obrigatório!', 'error');
+                return;
+            }
+            
+            if (!id && !pass) {
+                showToast('Senha é obrigatória para novo usuário!', 'error');
+                return;
+            }
+            
+            const url = id ? `/api/usuarios/${id}` : '/api/usuarios';
+            const method = id ? 'PUT' : 'POST';
+            const body = { user, nome, role };
+            if (pass) body.pass = pass;
+            
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(id ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!', 'success');
+                    closeModal();
+                    loadUsers();
+                } else {
+                    showToast(result.error || 'Erro ao salvar', 'error');
+                }
+            } catch (error) {
+                showToast('Erro ao salvar usuário', 'error');
+            }
+        });
+
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            toast.className = `toast glass-card px-6 py-3 rounded-xl flex items-center gap-3 ${type === 'error' ? 'text-red-400 border-red-500/30' : 'text-green-400 border-green-500/30'}`;
+            toast.innerHTML = `<i class="fas ${type === 'error' ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i> ${message}`;
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('modal-usuario');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+        // Verificar se é admin
+        fetch('/api/session')
+            .then(res => {
+                if (!res.ok) throw new Error('Não autenticado');
+                return res.json();
+            })
+            .then(data => {
+                if (data.role !== 'admin') {
+                    alert('⛔ Acesso negado! Você não tem permissão.');
+                    window.location.href = '/home';
+                }
+                currentUserRole = data.role;
+                loadUsers();
+            })
+            .catch(() => {
+                window.location.href = '/login.html';
+            });
+    </script>
+</body>
+</html>

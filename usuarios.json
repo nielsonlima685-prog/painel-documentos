@@ -1,0 +1,12 @@
+[
+  {
+    "user": "admin",
+    "pass": "123",
+    "nivel": "Master"
+  },
+  {
+    "user": "chcontas",
+    "pass": "master2026",
+    "nivel": "Operador"
+  }
+]
