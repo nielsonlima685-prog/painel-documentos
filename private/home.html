@@ -2,232 +2,252 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>MIND - Painel Inteligente</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #09090b;
+            background: #0a0a0f;
             color: #fafafa;
         }
         .glass-card {
-            background: rgba(24, 24, 27, 0.6);
+            background: rgba(24, 24, 27, 0.8);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(63, 63, 70, 0.4);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 20px;
+            transition: all 0.3s ease;
         }
-        .glass-card:hover {
-            border-color: #3b82f6;
-            transform: translateY(-4px);
-            background: rgba(30, 41, 59, 0.5);
-            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.2);
+        .glass-card:active {
+            transform: scale(0.98);
         }
         .feature-card {
             cursor: pointer;
         }
+        
+        /* Menu Hamburguer */
+        .menu-toggle {
+            display: none;
+            background: rgba(24, 24, 27, 0.9);
+            border: 1px solid #3f3f46;
+            border-radius: 12px;
+            padding: 10px 14px;
+            cursor: pointer;
+        }
         .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 260px;
+            height: 100%;
             background: #09090b;
             border-right: 1px solid #27272a;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
         }
-        .active-link {
-            background: rgba(59, 130, 246, 0.1);
-            color: #3b82f6;
-            border-left: 4px solid #3b82f6;
+        .sidebar.open {
+            transform: translateX(0);
         }
-        .sidebar-link {
-            transition: all 0.2s;
-            border-left: 4px solid transparent;
+        .overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
         }
-        .sidebar-link:hover {
-            background: rgba(39, 39, 42, 0.5);
+        .overlay.active {
+            display: block;
         }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #09090b; }
-        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
-        .disabled-card {
-            opacity: 0.5;
-            cursor: not-allowed;
+        
+        @media (max-width: 768px) {
+            .menu-toggle {
+                display: block;
+            }
+            main {
+                margin-left: 0 !important;
+                width: 100%;
+            }
+            .grid-cols-1\\.md\\:grid-cols-3 {
+                grid-template-columns: 1fr;
+            }
+            .grid-cols-1\\.md\\:grid-cols-2\\.lg\\:grid-cols-3 {
+                grid-template-columns: 1fr;
+            }
+            .glass-card {
+                padding: 1rem;
+            }
+            header {
+                padding: 0.75rem 1rem !important;
+            }
+            h1.text-xl {
+                font-size: 1.125rem;
+            }
         }
-        .disabled-card:hover {
-            transform: none;
-            border-color: rgba(63, 63, 70, 0.4);
+        
+        @media (max-width: 480px) {
+            .glass-card h3 {
+                font-size: 1rem;
+            }
+            .glass-card p {
+                font-size: 0.75rem;
+            }
+        }
+        
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 10px;
         }
     </style>
 </head>
-<body class="flex h-screen overflow-hidden">
-
+<body>
+    <!-- Overlay -->
+    <div id="overlay" class="overlay" onclick="closeMenu()"></div>
+    
     <!-- Sidebar -->
-    <aside class="sidebar w-64 flex-shrink-0 flex flex-col">
-        <div class="p-6">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-900/20">
-                    <i class="fas fa-brain text-white text-xl"></i>
+    <aside id="sidebar" class="sidebar">
+        <div class="p-5">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-brain text-white text-sm"></i>
+                    </div>
+                    <span class="text-xl font-bold">MIND<span class="text-blue-500">.</span></span>
                 </div>
-                <span class="text-2xl font-bold tracking-tight">MIND<span class="text-blue-500">.</span></span>
+                <button onclick="closeMenu()" class="text-zinc-500 hover:text-white md:hidden">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
             </div>
-        </div>
-
-        <nav class="flex-1 mt-4 px-3 space-y-1">
-            <a href="/home" class="active-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium">
-                <i class="fas fa-th-large w-5"></i> Dashboard
-            </a>
-            <div class="text-xs font-semibold text-zinc-500 uppercase px-4 mt-6 mb-2 tracking-wider">Ferramentas</div>
-            <a href="/emissao" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all">
-                <i class="fas fa-file-pdf w-5"></i> Emissão CRLV
-            </a>
-            
-            <!-- Link do Calibrador - Só aparece para admin -->
-            <a id="sidebar-calibrar" href="/calibrar" class="sidebar-link hidden items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all">
-                <i class="fas fa-crosshairs w-5"></i> Calibrador PDF
-            </a>
-            
-            <div id="admin-menu" class="hidden">
-                <div class="text-xs font-semibold text-red-500/80 uppercase px-4 mt-6 mb-2 tracking-wider">Administração</div>
-                <a href="/usuarios" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all">
-                    <i class="fas fa-user-shield w-5"></i> Gerenciar Usuários
+            <nav class="space-y-1">
+                <a href="/home" class="active-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium bg-blue-600/10 text-blue-500">
+                    <i class="fas fa-th-large w-5"></i> Dashboard
                 </a>
+                <div class="text-[10px] font-bold text-zinc-500 uppercase px-4 mt-6 mb-2">Ferramentas</div>
+                <a href="/emissao" class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
+                    <i class="fas fa-file-pdf w-5"></i> Emissão CRLV
+                </a>
+                <a id="sidebar-calibrar" href="/calibrar" class="hidden items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
+                    <i class="fas fa-crosshairs w-5"></i> Calibrador PDF
+                </a>
+                <div id="admin-menu" class="hidden">
+                    <div class="text-[10px] font-bold text-red-500/80 uppercase px-4 mt-6 mb-2">Administração</div>
+                    <a href="/usuarios" class="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
+                        <i class="fas fa-user-shield w-5"></i> Gerenciar Usuários
+                    </a>
+                </div>
+            </nav>
+            <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-zinc-800">
+                <button onclick="logout()" class="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-sm font-medium text-red-400 hover:bg-red-400/10 transition-all">
+                    <i class="fas fa-sign-out-alt w-5"></i> Sair
+                </button>
             </div>
-        </nav>
-
-        <div class="p-4 border-t border-zinc-800">
-            <button onclick="logout()" class="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-sm font-medium text-zinc-400 hover:text-red-400 hover:bg-red-400/10 transition-colors">
-                <i class="fas fa-sign-out-alt w-5"></i> Sair do Sistema
-            </button>
         </div>
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <!-- Header -->
-        <header class="h-20 flex items-center justify-between px-8 border-b border-zinc-800 bg-[#09090b]/80 backdrop-blur-md z-10">
-            <div>
-                <h1 class="text-xl font-semibold">Bem-vindo, <span id="user-name">Carregando...</span></h1>
-                <p class="text-sm text-zinc-500 mt-1">Escolha uma ferramenta abaixo para começar</p>
+    <main class="min-h-screen">
+        <header class="h-16 flex items-center justify-between px-4 md:px-8 border-b border-zinc-800 bg-[#09090b]/80 sticky top-0 z-50">
+            <div class="flex items-center gap-3">
+                <button class="menu-toggle" onclick="toggleMenu()">
+                    <i class="fas fa-bars text-white text-xl"></i>
+                </button>
+                <div>
+                    <h1 class="text-base md:text-xl font-semibold">Olá, <span id="user-name">Carregando...</span></h1>
+                    <p class="text-[10px] md:text-xs text-zinc-500 hidden md:block">Escolha uma ferramenta</p>
+                </div>
             </div>
-            
-            <div class="flex items-center gap-6">
-                <div class="text-right hidden sm:block">
-                    <p id="user-role" class="text-xs text-zinc-500">Carregando...</p>
-                </div>
-                <div class="relative group">
-                    <div class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
-                        <img id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff" alt="Avatar" class="w-full h-full object-cover">
-                    </div>
-                </div>
+            <div class="flex items-center gap-3">
+                <p id="user-role" class="text-[10px] md:text-xs text-zinc-500 bg-zinc-900 px-2 py-1 rounded-full">Carregando...</p>
+                <img id="user-avatar" src="" alt="Avatar" class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-800 border border-zinc-700">
             </div>
         </header>
 
-        <!-- Cards Section -->
-        <div class="flex-1 overflow-y-auto p-8">
+        <div class="p-4 md:p-8">
             <div class="max-w-6xl mx-auto">
-                
                 <!-- Status Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                    <div class="glass-card p-6 rounded-2xl flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center text-xl">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-12">
+                    <div class="glass-card p-4 md:p-5 flex items-center gap-4">
+                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center text-lg md:text-xl">
                             <i class="fas fa-calendar-alt"></i>
                         </div>
                         <div>
-                            <p class="text-zinc-500 text-xs uppercase font-bold tracking-widest">Expira em</p>
-                            <p id="expiry-date" class="text-lg font-semibold">--/--/----</p>
+                            <p class="text-zinc-500 text-[10px] md:text-xs uppercase font-bold">Expira em</p>
+                            <p id="expiry-date" class="text-base md:text-lg font-semibold">--/--/----</p>
                         </div>
                     </div>
-                    <div class="glass-card p-6 rounded-2xl flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center text-xl">
+                    <div class="glass-card p-4 md:p-5 flex items-center gap-4">
+                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center text-lg md:text-xl">
                             <i class="fas fa-chart-line"></i>
                         </div>
                         <div>
-                            <p class="text-zinc-500 text-xs uppercase font-bold tracking-widest">Uso Diário</p>
-                            <p class="text-lg font-semibold">0 / 1500</p>
+                            <p class="text-zinc-500 text-[10px] md:text-xs uppercase font-bold">Uso Diário</p>
+                            <p class="text-base md:text-lg font-semibold">0 / 1500</p>
                         </div>
                     </div>
-                    <div class="glass-card p-6 rounded-2xl flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-green-500/10 text-green-500 flex items-center justify-center text-xl">
+                    <div class="glass-card p-4 md:p-5 flex items-center gap-4">
+                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-green-500/10 text-green-500 flex items-center justify-center text-lg md:text-xl">
                             <i class="fas fa-shield-alt"></i>
                         </div>
                         <div>
-                            <p class="text-zinc-500 text-xs uppercase font-bold tracking-widest">Status da Conta</p>
-                            <p class="text-lg font-semibold text-green-400 font-bold uppercase text-sm">Ativo</p>
+                            <p class="text-zinc-500 text-[10px] md:text-xs uppercase font-bold">Status</p>
+                            <p class="text-sm md:text-base font-semibold text-green-400">Ativo</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Featured Tools -->
-                <h2 class="text-zinc-400 text-sm font-semibold uppercase tracking-widest mb-6">Ferramentas Disponíveis</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Ferramentas -->
+                <h2 class="text-zinc-400 text-xs md:text-sm font-semibold uppercase tracking-wider mb-4 md:mb-6">Ferramentas Disponíveis</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                     
-                    <!-- Card Emissão CRLV (Todos) -->
-                    <div onclick="window.location.href='/emissao'" class="glass-card p-6 rounded-2xl feature-card group">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-3xl group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                                <i class="fas fa-file-pdf"></i>
-                            </div>
-                            <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-1 rounded font-bold uppercase">Principal</span>
+                    <div onclick="window.location.href='/emissao'" class="glass-card p-4 md:p-6 feature-card">
+                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
+                            <i class="fas fa-file-pdf text-emerald-400"></i>
                         </div>
-                        <h3 class="font-bold text-xl mb-2">Emissão CRLV</h3>
-                        <p class="text-zinc-500 text-sm leading-relaxed">Gere documentos CRLV-e em PDF com preenchimento automático e templates personalizados.</p>
-                        <div class="mt-4 flex items-center text-blue-400 text-sm font-medium">
+                        <h3 class="font-bold text-base md:text-xl mb-1">Emissão CRLV</h3>
+                        <p class="text-zinc-500 text-xs md:text-sm">Gere documentos CRLV-e em PDF</p>
+                        <div class="mt-3 flex items-center text-blue-400 text-xs md:text-sm">
                             <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                            <i class="fas fa-arrow-right ml-2"></i>
                         </div>
                     </div>
 
-                    <!-- Card Calibrador (SÓ ADMIN) -->
-                    <div id="calibrar-card" class="hidden glass-card p-6 rounded-2xl feature-card group" onclick="window.location.href='/calibrar'">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-3xl group-hover:bg-purple-600 group-hover:text-white transition-all">
-                                <i class="fas fa-crosshairs"></i>
-                            </div>
-                            <span class="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-1 rounded font-bold uppercase">Ferramenta</span>
+                    <div id="calibrar-card" class="hidden glass-card p-4 md:p-6 feature-card" onclick="window.location.href='/calibrar'">
+                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
+                            <i class="fas fa-crosshairs text-purple-400"></i>
                         </div>
-                        <h3 class="font-bold text-xl mb-2">Calibrador PDF</h3>
-                        <p class="text-zinc-500 text-sm leading-relaxed">Ajuste as posições dos campos no template PDF para emissão perfeita.</p>
-                        <div class="mt-4 flex items-center text-purple-400 text-sm font-medium">
+                        <h3 class="font-bold text-base md:text-xl mb-1">Calibrador PDF</h3>
+                        <p class="text-zinc-500 text-xs md:text-sm">Ajuste as posições dos campos</p>
+                        <div class="mt-3 flex items-center text-purple-400 text-xs md:text-sm">
                             <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                            <i class="fas fa-arrow-right ml-2"></i>
                         </div>
                     </div>
 
-                    <!-- Card Admin (SÓ ADMIN) -->
-                    <div id="admin-card" class="hidden glass-card p-6 rounded-2xl feature-card group" onclick="window.location.href='/usuarios'">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center text-3xl group-hover:bg-red-600 group-hover:text-white transition-all">
-                                <i class="fas fa-user-shield"></i>
-                            </div>
-                            <span class="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded font-bold uppercase">Restrito</span>
+                    <div id="admin-card" class="hidden glass-card p-4 md:p-6 feature-card" onclick="window.location.href='/usuarios'">
+                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-red-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
+                            <i class="fas fa-user-shield text-red-400"></i>
                         </div>
-                        <h3 class="font-bold text-xl mb-2">Gerenciar Usuários</h3>
-                        <p class="text-zinc-500 text-sm leading-relaxed">Controle de acesso, adicione ou remova operadores do sistema.</p>
-                        <div class="mt-4 flex items-center text-red-400 text-sm font-medium">
+                        <h3 class="font-bold text-base md:text-xl mb-1">Gerenciar Usuários</h3>
+                        <p class="text-zinc-500 text-xs md:text-sm">Controle de acesso do sistema</p>
+                        <div class="mt-3 flex items-center text-red-400 text-xs md:text-sm">
                             <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                            <i class="fas fa-arrow-right ml-2"></i>
                         </div>
                     </div>
-
-                    <!-- Card Extra: Consulta Placa (Todos, mas em breve) -->
-                    <div class="glass-card p-6 rounded-2xl feature-card group disabled-card">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-3xl">
-                                <i class="fas fa-car"></i>
-                            </div>
-                            <span class="text-[10px] bg-zinc-500/20 text-zinc-400 px-2 py-1 rounded font-bold uppercase">Em breve</span>
-                        </div>
-                        <h3 class="font-bold text-xl mb-2">Consulta Placa</h3>
-                        <p class="text-zinc-500 text-sm leading-relaxed">Sistema de consulta veicular por placa Mercosul (em desenvolvimento).</p>
-                        <div class="mt-4 flex items-center text-zinc-500 text-sm font-medium">
-                            <span>Indisponível</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div class="mt-12 pt-8 border-t border-zinc-800 text-center">
-                    <p class="text-[10px] text-zinc-600 uppercase tracking-widest">
-                        CH CONTAS &copy; 2026 - SISTEMA DE EMISSÃO PROFISSIONAL
-                    </p>
                 </div>
             </div>
         </div>
@@ -235,6 +255,16 @@
 
     <script>
         let userData = null;
+        
+        function toggleMenu() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('overlay').classList.toggle('active');
+        }
+        
+        function closeMenu() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('overlay').classList.remove('active');
+        }
 
         async function loadSession() {
             try {
@@ -243,26 +273,18 @@
                 userData = await response.json();
                 
                 document.getElementById('user-name').innerText = userData.nome || userData.user;
-                document.getElementById('user-role').innerHTML = `<i class="fas fa-circle text-[8px] text-green-500 mr-1"></i> ${userData.plano}`;
+                document.getElementById('user-role').innerHTML = userData.plano;
                 document.getElementById('expiry-date').innerText = userData.expira.split(' ')[0];
-                document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.nome || userData.user)}&background=3b82f6&color=fff`;
+                document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.nome || userData.user)}&background=3b82f6&color=fff&size=64`;
                 
-                // Se for admin, mostra tudo
                 if(userData.role === 'admin') {
                     document.getElementById('admin-menu').classList.remove('hidden');
                     document.getElementById('admin-card').classList.remove('hidden');
                     document.getElementById('calibrar-card').classList.remove('hidden');
                     document.getElementById('sidebar-calibrar').classList.remove('hidden');
-                    document.getElementById('sidebar-calibrar').classList.add('flex');
-                } else {
-                    // Esconde tudo de admin
-                    document.getElementById('admin-menu').classList.add('hidden');
-                    document.getElementById('admin-card').classList.add('hidden');
-                    document.getElementById('calibrar-card').classList.add('hidden');
-                    document.getElementById('sidebar-calibrar').classList.add('hidden');
                 }
             } catch (error) {
-                console.error('Erro ao carregar sessão:', error);
+                console.error('Erro:', error);
                 window.location.href = '/login.html';
             }
         }

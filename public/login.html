@@ -2,82 +2,100 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>Login | CH Painel</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         body { 
             font-family: 'Inter', sans-serif; 
-            background-color: #0d1117; 
-            background-image: radial-gradient(circle at top right, #1e293b 0%, #0d1117 100%);
+            background: linear-gradient(135deg, #0d1117 0%, #1a2332 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
         }
         .login-card {
-            background-color: #161b22;
-            border: 1px solid #30363d;
+            background-color: rgba(22, 27, 34, 0.95);
             backdrop-filter: blur(10px);
+            border: 1px solid #30363d;
+            border-radius: 24px;
+            width: 100%;
+            max-width: 440px;
+            padding: 32px 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
         .input-field {
             background-color: #0d1117;
             border: 1px solid #30363d;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 14px;
+            padding: 14px 18px;
+            width: 100%;
+            color: white;
+            font-size: 16px;
+            transition: all 0.2s;
         }
         .input-field:focus {
-            border-color: #58a6ff;
-            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+            border-color: #3b82f6;
             outline: none;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        .btn-login {
+            background: linear-gradient(90deg, #3b82f6, #2563eb);
+            border-radius: 14px;
+            padding: 14px;
+            font-weight: 700;
+            font-size: 16px;
+            transition: all 0.2s;
+            width: 100%;
+            border: none;
+            color: white;
+            cursor: pointer;
+        }
+        .btn-login:active {
+            transform: scale(0.98);
+        }
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 24px 20px;
+            }
+            .input-field {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
-
-    <div class="login-card w-full max-w-md p-8 md:p-10 rounded-2xl shadow-2xl transform transition-all">
-        <div class="text-center mb-10">
-            <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center font-bold text-white text-2xl shadow-lg shadow-blue-900/40 mx-auto mb-6 rotate-3">
+<body>
+    <div class="login-card">
+        <div class="text-center mb-8">
+            <div class="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center text-white text-3xl font-bold shadow-lg mx-auto mb-4">
                 CH
             </div>
-            <h1 class="text-3xl font-extrabold text-white tracking-tight">CH Painel</h1>
-            <p class="text-gray-400 text-sm mt-3 font-medium">Acesso Restrito ao Sistema de Emissão</p>
+            <h1 class="text-2xl font-bold text-white">CH Painel</h1>
+            <p class="text-gray-400 text-sm mt-2">Sistema de Emissão de Documentos</p>
         </div>
 
-        <form action="/login" method="POST" class="space-y-6">
-            <div>
-                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Usuário</label>
-                <input 
-                    type="text" 
-                    name="username" 
-                    id="username" 
-                    required 
-                    autocomplete="username"
-                    class="input-field w-full px-5 py-4 rounded-xl text-white placeholder:text-gray-600" 
-                    placeholder="Digite seu usuário"
-                >
+        <form action="/login" method="POST">
+            <div class="mb-5">
+                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Usuário</label>
+                <input type="text" name="username" required class="input-field" placeholder="Digite seu usuário">
             </div>
-
-            <div>
-                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Senha</label>
-                <input 
-                    type="password" 
-                    name="password" 
-                    id="password" 
-                    required 
-                    autocomplete="current-password"
-                    class="input-field w-full px-5 py-4 rounded-xl text-white placeholder:text-gray-600" 
-                    placeholder="••••••••"
-                >
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Senha</label>
+                <input type="password" name="password" required class="input-field" placeholder="••••••••">
             </div>
-
-            <div class="pt-2">
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition-all shadow-xl shadow-blue-900/30 transform active:scale-[0.98]">
-                    Entrar no Sistema
-                </button>
-            </div>
+            <button type="submit" class="btn-login">Entrar no Sistema</button>
         </form>
 
         <div class="mt-8 pt-6 border-t border-gray-800 text-center">
-            <p class="text-[10px] text-gray-500 font-bold uppercase tracking-[0.3em]">
-                CH CONTAS &copy; 2026 - MASTER EDITION
-            </p>
+            <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">CH CONTAS &copy; 2026</p>
         </div>
     </div>
 </body>

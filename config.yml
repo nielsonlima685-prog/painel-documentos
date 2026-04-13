@@ -1,0 +1,7 @@
+tunnel: 0fe44703-d314-4688-a5bf-9fc846a47091
+credentials-file: C:\Users\Alice\.cloudflared\0fe44703-d314-4688-a5bf-9fc846a47091.json
+
+ingress:
+  - hostname: chbicos.duckdns.org
+    service: http://127.0.0.1:3000
+  - service: http_status:404
