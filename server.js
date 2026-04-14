@@ -28,7 +28,7 @@ const client = new MercadoPagoConfig({
 const payment = new Payment(client);
 
 // URL do bot via ngrok (atualize quando reiniciar o ngrok)
-const BOT_API_URL = 'https://estell-myrtaceous-diaphragmatically.ngrok-free.dev';
+const BOT_API_URL = 'http://localhost:3001';
 
 // ==================== MIDDLEWARES ====================
 const requireAuth = (req, res, next) => {

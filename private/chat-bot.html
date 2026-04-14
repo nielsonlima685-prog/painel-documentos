@@ -35,10 +35,11 @@
             justify-content: flex-start;
         }
         .message .bubble {
-            max-width: 70%;
+            max-width: 80%;
             padding: 10px 15px;
             border-radius: 18px;
             font-size: 14px;
+            word-wrap: break-word;
         }
         .message.user .bubble {
             background: linear-gradient(135deg, #25D366, #128C7E);
@@ -49,6 +50,11 @@
             background: #f0f0f0;
             color: #333;
             border-bottom-left-radius: 4px;
+        }
+        .message.bot .bubble img {
+            max-width: 200px;
+            border-radius: 10px;
+            margin-top: 5px;
         }
         .input-area {
             padding: 1rem;
@@ -62,6 +68,7 @@
             border: 1px solid #ddd;
             border-radius: 25px;
             outline: none;
+            font-size: 14px;
         }
         .input-area button {
             background: linear-gradient(135deg, #25D366, #128C7E);
@@ -70,14 +77,22 @@
             border-radius: 25px;
             padding: 0 20px;
             cursor: pointer;
+            font-size: 16px;
+        }
+        .input-area button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
         .image-preview {
             display: none;
             position: relative;
-            margin-bottom: 10px;
+            margin: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 10px;
         }
         .image-preview img {
-            max-width: 100px;
+            max-width: 80px;
             border-radius: 10px;
         }
         .typing {
@@ -86,6 +101,8 @@
             background: #f0f0f0;
             border-radius: 18px;
             width: fit-content;
+            margin-left: 1rem;
+            margin-bottom: 1rem;
         }
         .typing span {
             display: inline-block;
@@ -107,13 +124,20 @@
             top: 20px;
             right: 20px;
             background: rgba(0,0,0,0.7);
-            padding: 5px 10px;
+            padding: 5px 12px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 11px;
             color: white;
+            z-index: 50;
         }
         .status-badge.online { background: #10b981; }
         .status-badge.offline { background: #ef4444; }
+        .status-badge.checking { background: #f59e0b; }
+        @media (max-width: 480px) {
+            .message .bubble { max-width: 90%; font-size: 13px; }
+            .input-area input { padding: 10px; font-size: 13px; }
+            .input-area button { padding: 0 15px; }
+        }
     </style>
 </head>
 <body class="p-4">
@@ -123,12 +147,12 @@
             <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-lg">
                 <i class="fab fa-whatsapp text-white text-2xl"></i>
             </div>
-            <h1 class="text-xl font-bold text-white">Bot de Bicos</h1>
+            <h1 class="text-xl font-bold text-white">Chat com Bot</h1>
             <p class="text-gray-300 text-xs">Atendimento via WhatsApp integrado</p>
         </div>
 
         <!-- Status -->
-        <div id="statusBadge" class="status-badge offline">
+        <div id="statusBadge" class="status-badge checking">
             <i class="fas fa-circle mr-1" style="font-size: 8px;"></i> Verificando...
         </div>
 
@@ -137,14 +161,14 @@
             <div id="messagesArea" class="messages-area">
                 <div class="message bot">
                     <div class="bubble">
-                        👋 Olá! Bem-vindo ao CH Bicos!<br>
-                        Digite /compare para começar a busca de perfis.<br>
-                        Ou me envie uma foto para reconhecimento facial!
+                        👋 Olá! Bem-vindo ao <strong>CH Bicos</strong>!<br><br>
+                        📌 <strong>Digite /compare</strong> para começar a busca de perfis.<br>
+                        📸 Ou me envie uma foto para reconhecimento facial!
                     </div>
                 </div>
             </div>
             
-            <div id="typingIndicator" class="typing mx-3 mb-2">
+            <div id="typingIndicator" class="typing">
                 <span></span><span></span><span></span>
             </div>
             
@@ -154,7 +178,7 @@
                     <i class="fas fa-camera text-gray-600"></i>
                 </label>
                 <input type="file" id="imageInput" accept="image/*" style="display: none" onchange="handleImageSelect(event)">
-                <button onclick="sendMessage()">
+                <button id="sendBtn" onclick="sendMessage()">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>
@@ -177,6 +201,7 @@
         
         let currentImage = null;
         let pollingInterval = null;
+        let isLoading = false;
         
         // Verificar status do bot
         async function checkBotStatus() {
@@ -192,21 +217,9 @@
                     badge.innerHTML = '<i class="fas fa-circle mr-1" style="font-size: 8px;"></i> Bot Offline';
                 }
             } catch (error) {
-                console.error('Erro ao verificar status:', error);
-            }
-        }
-        
-        // Buscar respostas do bot
-        async function buscarRespostas() {
-            try {
-                const response = await fetch(`/api/bot/respostas/${sessionId}`);
-                const respostas = await response.json();
-                
-                for (const msg of respostas) {
-                    adicionarMensagem(msg.mensagem, 'bot');
-                }
-            } catch (error) {
-                console.error('Erro ao buscar respostas:', error);
+                const badge = document.getElementById('statusBadge');
+                badge.className = 'status-badge offline';
+                badge.innerHTML = '<i class="fas fa-circle mr-1" style="font-size: 8px;"></i> Bot Offline';
             }
         }
         
@@ -216,13 +229,32 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${tipo}`;
             
-            let conteudo = '';
+            let conteudo = `<div class="bubble">`;
             if (imagem) {
-                conteudo = `<img src="${imagem}" class="max-w-full rounded-lg mb-2 max-h-48">`;
+                conteudo += `<img src="${imagem}" alt="QR Code" style="max-width: 200px; border-radius: 10px; margin-bottom: 8px;"><br>`;
             }
-            conteudo += `<div class="bubble">${texto}</div>`;
+            // Converter markdown simples para HTML
+            let textoFormatado = texto
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`(.*?)`/g, '<code style="background:#e0e0e0; padding:2px 4px; border-radius:4px;">$1</code>')
+                .replace(/\n/g, '<br>');
+            conteudo += textoFormatado;
+            conteudo += `</div>`;
             
             messageDiv.innerHTML = conteudo;
+            messagesArea.appendChild(messageDiv);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+        
+        function adicionarMensagemComImagem(imagemBase64, tipo) {
+            const messagesArea = document.getElementById('messagesArea');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${tipo}`;
+            messageDiv.innerHTML = `
+                <div class="bubble">
+                    <img src="data:image/png;base64,${imagemBase64}" style="max-width: 200px; border-radius: 10px;">
+                </div>
+            `;
             messagesArea.appendChild(messageDiv);
             messagesArea.scrollTop = messagesArea.scrollHeight;
         }
@@ -230,7 +262,27 @@
         // Mostrar/ocultar digitação
         function mostrarDigitando(mostrar) {
             const typing = document.getElementById('typingIndicator');
-            typing.style.display = mostrar ? 'block' : 'none';
+            typing.style.display = mostrar ? 'flex' : 'none';
+        }
+        
+        // Buscar respostas do bot
+        async function buscarRespostas() {
+            if (isLoading) return;
+            
+            try {
+                const response = await fetch(`/api/bot/respostas/${sessionId}`);
+                const respostas = await response.json();
+                
+                for (const msg of respostas) {
+                    if (msg.tipo === 'imagem' && msg.imagem) {
+                        adicionarMensagemComImagem(msg.imagem, 'bot');
+                    } else if (msg.mensagem) {
+                        adicionarMensagem(msg.mensagem, 'bot');
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao buscar respostas:', error);
+            }
         }
         
         // Enviar mensagem
@@ -239,16 +291,21 @@
             const mensagem = input.value.trim();
             
             if (!mensagem && !currentImage) return;
+            if (isLoading) return;
+            
+            isLoading = true;
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
             
             // Adicionar mensagem do usuário
             if (mensagem) {
                 adicionarMensagem(mensagem, 'user');
+                input.value = '';
             }
             if (currentImage) {
-                adicionarMensagem('📸 Enviando imagem...', 'user', currentImage);
+                adicionarMensagem('📸 Enviando imagem...', 'user');
             }
             
-            input.value = '';
             mostrarDigitando(true);
             
             try {
@@ -273,18 +330,20 @@
                 });
                 
                 if (response.ok) {
-                    // Aguardar resposta
                     setTimeout(() => {
                         buscarRespostas();
                         mostrarDigitando(false);
-                    }, 2000);
+                    }, 1500);
                 } else {
                     mostrarDigitando(false);
                     adicionarMensagem('❌ Erro ao enviar mensagem. Tente novamente.', 'bot');
                 }
             } catch (error) {
                 mostrarDigitando(false);
-                adicionarMensagem('❌ Erro de conexão. Verifique se o bot está online.', 'bot');
+                adicionarMensagem('❌ Erro de conexão. Verifique sua internet.', 'bot');
+            } finally {
+                isLoading = false;
+                sendBtn.disabled = false;
             }
         }
         
@@ -299,11 +358,12 @@
                 };
                 reader.readAsDataURL(file);
             }
+            document.getElementById('imageInput').value = '';
         }
         
         // Lidar com tecla Enter
         function handleKeyPress(event) {
-            if (event.key === 'Enter') {
+            if (event.key === 'Enter' && !isLoading) {
                 sendMessage();
             }
         }
@@ -312,7 +372,7 @@
         function startPolling() {
             checkBotStatus();
             setInterval(checkBotStatus, 30000);
-            setInterval(buscarRespostas, 3000);
+            pollingInterval = setInterval(buscarRespostas, 3000);
         }
         
         startPolling();
