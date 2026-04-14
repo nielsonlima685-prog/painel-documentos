@@ -337,17 +337,46 @@ app.post('/api/bicos-remotos', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
-// Verificar status do bot local
-app.get('/api/bot-status', requireAuth, requireAdmin, async (req, res) => {
+// Enviar mensagem para o bot processar
+app.post('/api/bot/mensagem', requireAuth, async (req, res) => {
     try {
-        const response = await fetch(`${BOT_API_URL}/api/bicos`);
+        const response = await fetch(`${BOT_API_URL}/api/bot/mensagem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body)
+        });
+        const result = await response.json();
+        res.json(result);
+    } catch (error) {
+        console.error('Erro ao enviar mensagem para o bot:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Buscar respostas do bot
+app.get('/api/bot/respostas/:sessionId', requireAuth, async (req, res) => {
+    try {
+        const response = await fetch(`${BOT_API_URL}/api/bot/respostas/${req.params.sessionId}`);
+        const respostas = await response.json();
+        res.json(respostas);
+    } catch (error) {
+        console.error('Erro ao buscar respostas do bot:', error.message);
+        res.json([]);
+    }
+});
+
+// Verificar status do bot local
+app.get('/api/bot-status', requireAuth, async (req, res) => {
+    try {
+        const response = await fetch(`${BOT_API_URL}/api/bot/status`);
         if (response.ok) {
-            res.json({ status: 'online', url: BOT_API_URL });
+            const data = await response.json();
+            res.json({ status: 'online', ...data });
         } else {
-            res.json({ status: 'offline', url: BOT_API_URL });
+            res.json({ status: 'offline' });
         }
     } catch (error) {
-        res.json({ status: 'offline', url: BOT_API_URL, error: error.message });
+        res.json({ status: 'offline', error: error.message });
     }
 });
 
@@ -408,6 +437,10 @@ app.get('/bicos', requireAuth, (req, res) => {
 
 app.get('/bot-admin', requireAuth, requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'bot-admin.html'));
+});
+
+app.get('/chat-bot', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'chat-bot.html'));
 });
 
 // ==================== ROTA DE GERAÇÃO DE PDF ====================
@@ -526,6 +559,7 @@ app.listen(PORT, () => {
     console.log(`👥 Usuários: /usuarios`);
     console.log(`🤖 Bot de Bicos: /bicos`);
     console.log(`💰 Admin Bot: /bot-admin`);
+    console.log(`💬 Chat com Bot: /chat-bot`);
     console.log(`🔗 Bot API: ${BOT_API_URL}`);
     console.log(`${'='.repeat(50)}\n`);
 });

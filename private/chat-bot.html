@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Chat com Bot | CH Vendas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+        }
+        .chat-container {
+            background: rgba(255,255,255,0.95);
+            border-radius: 24px;
+            height: 70vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+        }
+        .message.user {
+            justify-content: flex-end;
+        }
+        .message.bot {
+            justify-content: flex-start;
+        }
+        .message .bubble {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            font-size: 14px;
+        }
+        .message.user .bubble {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .message.bot .bubble {
+            background: #f0f0f0;
+            color: #333;
+            border-bottom-left-radius: 4px;
+        }
+        .input-area {
+            padding: 1rem;
+            border-top: 1px solid #e5e5e5;
+            display: flex;
+            gap: 0.5rem;
+        }
+        .input-area input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            outline: none;
+        }
+        .input-area button {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 0 20px;
+            cursor: pointer;
+        }
+        .image-preview {
+            display: none;
+            position: relative;
+            margin-bottom: 10px;
+        }
+        .image-preview img {
+            max-width: 100px;
+            border-radius: 10px;
+        }
+        .typing {
+            display: none;
+            padding: 10px 15px;
+            background: #f0f0f0;
+            border-radius: 18px;
+            width: fit-content;
+        }
+        .typing span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+        }
+        .typing span:nth-child(2) { animation-delay: 0.2s; }
+        .typing span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+        .status-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: white;
+        }
+        .status-badge.online { background: #10b981; }
+        .status-badge.offline { background: #ef4444; }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-2xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-lg">
+                <i class="fab fa-whatsapp text-white text-2xl"></i>
+            </div>
+            <h1 class="text-xl font-bold text-white">Bot de Bicos</h1>
+            <p class="text-gray-300 text-xs">Atendimento via WhatsApp integrado</p>
+        </div>
+
+        <!-- Status -->
+        <div id="statusBadge" class="status-badge offline">
+            <i class="fas fa-circle mr-1" style="font-size: 8px;"></i> Verificando...
+        </div>
+
+        <!-- Chat Container -->
+        <div class="chat-container">
+            <div id="messagesArea" class="messages-area">
+                <div class="message bot">
+                    <div class="bubble">
+                        👋 Olá! Bem-vindo ao CH Bicos!<br>
+                        Digite /compare para começar a busca de perfis.<br>
+                        Ou me envie uma foto para reconhecimento facial!
+                    </div>
+                </div>
+            </div>
+            
+            <div id="typingIndicator" class="typing mx-3 mb-2">
+                <span></span><span></span><span></span>
+            </div>
+            
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Digite sua mensagem..." onkeypress="handleKeyPress(event)">
+                <label for="imageInput" class="cursor-pointer bg-gray-200 hover:bg-gray-300 rounded-full w-10 h-10 flex items-center justify-center">
+                    <i class="fas fa-camera text-gray-600"></i>
+                </label>
+                <input type="file" id="imageInput" accept="image/*" style="display: none" onchange="handleImageSelect(event)">
+                <button onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Botão Voltar -->
+        <div class="text-center mt-4">
+            <a href="/home" class="text-gray-300 text-sm hover:text-white transition-colors">
+                <i class="fas fa-arrow-left mr-1"></i> Voltar ao Painel
+            </a>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = localStorage.getItem('bot_session_id');
+        if (!sessionId) {
+            sessionId = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('bot_session_id', sessionId);
+        }
+        
+        let currentImage = null;
+        let pollingInterval = null;
+        
+        // Verificar status do bot
+        async function checkBotStatus() {
+            try {
+                const response = await fetch('/api/bot-status');
+                const data = await response.json();
+                const badge = document.getElementById('statusBadge');
+                if (data.status === 'online') {
+                    badge.className = 'status-badge online';
+                    badge.innerHTML = '<i class="fas fa-circle mr-1" style="font-size: 8px;"></i> Bot Online';
+                } else {
+                    badge.className = 'status-badge offline';
+                    badge.innerHTML = '<i class="fas fa-circle mr-1" style="font-size: 8px;"></i> Bot Offline';
+                }
+            } catch (error) {
+                console.error('Erro ao verificar status:', error);
+            }
+        }
+        
+        // Buscar respostas do bot
+        async function buscarRespostas() {
+            try {
+                const response = await fetch(`/api/bot/respostas/${sessionId}`);
+                const respostas = await response.json();
+                
+                for (const msg of respostas) {
+                    adicionarMensagem(msg.mensagem, 'bot');
+                }
+            } catch (error) {
+                console.error('Erro ao buscar respostas:', error);
+            }
+        }
+        
+        // Adicionar mensagem ao chat
+        function adicionarMensagem(texto, tipo, imagem = null) {
+            const messagesArea = document.getElementById('messagesArea');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${tipo}`;
+            
+            let conteudo = '';
+            if (imagem) {
+                conteudo = `<img src="${imagem}" class="max-w-full rounded-lg mb-2 max-h-48">`;
+            }
+            conteudo += `<div class="bubble">${texto}</div>`;
+            
+            messageDiv.innerHTML = conteudo;
+            messagesArea.appendChild(messageDiv);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+        
+        // Mostrar/ocultar digitação
+        function mostrarDigitando(mostrar) {
+            const typing = document.getElementById('typingIndicator');
+            typing.style.display = mostrar ? 'block' : 'none';
+        }
+        
+        // Enviar mensagem
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const mensagem = input.value.trim();
+            
+            if (!mensagem && !currentImage) return;
+            
+            // Adicionar mensagem do usuário
+            if (mensagem) {
+                adicionarMensagem(mensagem, 'user');
+            }
+            if (currentImage) {
+                adicionarMensagem('📸 Enviando imagem...', 'user', currentImage);
+            }
+            
+            input.value = '';
+            mostrarDigitando(true);
+            
+            try {
+                let tipo = 'texto';
+                let imagemBase64 = null;
+                
+                if (currentImage) {
+                    tipo = 'imagem';
+                    imagemBase64 = currentImage;
+                    currentImage = null;
+                }
+                
+                const response = await fetch('/api/bot/mensagem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mensagem: mensagem || 'Imagem enviada',
+                        tipo: tipo,
+                        imagem: imagemBase64,
+                        sessionId: sessionId
+                    })
+                });
+                
+                if (response.ok) {
+                    // Aguardar resposta
+                    setTimeout(() => {
+                        buscarRespostas();
+                        mostrarDigitando(false);
+                    }, 2000);
+                } else {
+                    mostrarDigitando(false);
+                    adicionarMensagem('❌ Erro ao enviar mensagem. Tente novamente.', 'bot');
+                }
+            } catch (error) {
+                mostrarDigitando(false);
+                adicionarMensagem('❌ Erro de conexão. Verifique se o bot está online.', 'bot');
+            }
+        }
+        
+        // Lidar com seleção de imagem
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentImage = e.target.result;
+                    sendMessage();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        // Lidar com tecla Enter
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // Iniciar polling de mensagens
+        function startPolling() {
+            checkBotStatus();
+            setInterval(checkBotStatus, 30000);
+            setInterval(buscarRespostas, 3000);
+        }
+        
+        startPolling();
+    </script>
+</body>
+</html>
