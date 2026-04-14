@@ -34,9 +34,6 @@
             background: rgba(255,255,255,0.95);
             border-radius: 24px;
         }
-        input:focus {
-            ring: 2px solid #3b82f6;
-        }
     </style>
 </head>
 <body class="p-4">
@@ -47,7 +44,7 @@
                 <i class="fas fa-shield-alt text-white text-3xl"></i>
             </div>
             <h1 class="text-2xl font-bold text-white">Consultador de Antecedentes</h1>
-            <p class="text-gray-300 text-sm">Consulta oficial ao CNJ - 91 tribunais</p>
+            <p class="text-gray-300 text-sm">Consulta oficial ao CNJ</p>
         </div>
 
         <!-- Card de Consulta -->
@@ -107,8 +104,8 @@
             resultadoDiv.innerHTML = `
                 <div class="glass-card rounded-2xl shadow-xl p-8 text-center">
                     <div class="loading mx-auto mb-4"></div>
-                    <p class="text-gray-600">Consultando 91 tribunais...</p>
-                    <p class="text-xs text-gray-400 mt-2">Isso pode levar alguns segundos</p>
+                    <p class="text-gray-600">Consultando base do CNJ...</p>
+                    <p class="text-xs text-gray-400 mt-2">Aguarde, isso pode levar alguns segundos</p>
                 </div>
             `;
             resultadoDiv.classList.remove('hidden');
@@ -123,6 +120,7 @@
                 });
                 
                 const data = await response.json();
+                console.log('Resposta do servidor:', data);
                 
                 let statusText = '', icon = '', bgClass = '';
                 
@@ -140,16 +138,20 @@
                     bgClass = 'erro';
                 }
                 
+                const mensagem = data.mensagem || 'Consulta realizada';
+                const cpfConsultado = data.cpf_consultado || cpf;
+                
                 resultadoDiv.innerHTML = `
                     <div class="result-card ${bgClass} rounded-2xl shadow-xl p-6 text-white text-center">
                         <i class="fas ${icon} text-5xl mb-3"></i>
                         <h2 class="text-2xl font-bold mb-2">${statusText}</h2>
-                        <p class="text-sm opacity-90">${data.mensagem}</p>
-                        <div class="mt-4 text-xs opacity-75">CPF consultado: ${data.cpf_consultado}</div>
+                        <p class="text-sm opacity-90">${mensagem}</p>
+                        <div class="mt-4 text-xs opacity-75">CPF consultado: ${cpfConsultado}</div>
                     </div>
                 `;
                 
             } catch (error) {
+                console.error('Erro:', error);
                 resultadoDiv.innerHTML = `
                     <div class="bg-red-100 border border-red-400 text-red-700 rounded-2xl p-6 text-center">
                         <i class="fas fa-exclamation-triangle text-3xl mb-2"></i>
