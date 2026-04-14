@@ -3,9 +3,10 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+const { exec } = require('child_process');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Configurações iniciais
 app.use(express.json());
@@ -13,10 +14,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
 app.use(session({
-    secret: 'ch-contas-secret-key',
+    secret: process.env.SESSION_SECRET || 'ch-contas-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 horas
+    cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
 
 // ==================== MIDDLEWARES ====================
@@ -47,21 +48,18 @@ const requireAdmin = (req, res, next) => {
     }
 };
 
-// ==================== GERENCIAMENTO DE USUÁRIOS (JSON Database) ====================
+// ==================== GERENCIAMENTO DE USUÁRIOS ====================
 const USERS_FILE = path.join(__dirname, 'data', 'users.json');
 
-// Garantir que a pasta data existe
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
     fs.mkdirSync(path.join(__dirname, 'data'));
 }
 
-// Usuários padrão (admin e operador)
 const defaultUsers = [
-    { id: 1, user: 'Newbr47', pass: '88837024', role: 'admin', nome: 'Administrador Chefe', plano: 'MASTER PREMIUM', createdAt: new Date().toISOString() },
+    { id: 1, user: 'Newbr47', pass: '88837024', role: 'admin', nome: 'Carlos Henrique', plano: 'MASTER PREMIUM', createdAt: new Date().toISOString() },
     { id: 2, user: 'chcontas', pass: 'master2026', role: 'user', nome: 'CH Contas', plano: 'OPERADOR', createdAt: new Date().toISOString() }
 ];
 
-// Carregar usuários do arquivo ou criar padrão
 function loadUsers() {
     if (!fs.existsSync(USERS_FILE)) {
         fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2));
@@ -74,7 +72,7 @@ function saveUsers(users) {
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
-// API de usuários (CRUD)
+// API de usuários
 app.get('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
     const users = loadUsers();
     const safeUsers = users.map(u => ({ ...u, pass: '********' }));
@@ -83,17 +81,13 @@ app.get('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
 
 app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
     const { user, pass, role, nome } = req.body;
-    
     if (!user || !pass) {
         return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
     }
-    
     const users = loadUsers();
-    
     if (users.find(u => u.user === user)) {
         return res.status(400).json({ error: 'Usuário já existe!' });
     }
-    
     const newUser = {
         id: users.length + 1,
         user: user,
@@ -103,30 +97,24 @@ app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
         plano: role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR',
         createdAt: new Date().toISOString()
     };
-    
     users.push(newUser);
     saveUsers(users);
-    
     res.json({ success: true, user: { ...newUser, pass: '********' } });
 });
 
 app.put('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
     const { id } = req.params;
     const { user, pass, role, nome } = req.body;
-    
     const users = loadUsers();
     const index = users.findIndex(u => u.id == id);
-    
     if (index === -1) {
         return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    
     users[index].user = user || users[index].user;
     if (pass) users[index].pass = pass;
     users[index].role = role || users[index].role;
     users[index].nome = nome || users[index].nome;
     users[index].plano = users[index].role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR';
-    
     saveUsers(users);
     res.json({ success: true, user: { ...users[index], pass: '********' } });
 });
@@ -134,17 +122,13 @@ app.put('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
 app.delete('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
     const { id } = req.params;
     const users = loadUsers();
-    
     if (users.find(u => u.id == id && u.user === req.session.user)) {
         return res.status(400).json({ error: 'Você não pode deletar seu próprio usuário!' });
     }
-    
     const filteredUsers = users.filter(u => u.id != id);
-    
     if (filteredUsers.length === users.length) {
         return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    
     saveUsers(filteredUsers);
     res.json({ success: true });
 });
@@ -154,7 +138,6 @@ app.post('/login', (req, res) => {
     const { username, password } = req.body;
     const users = loadUsers();
     const usuarioValido = users.find(u => u.user === username && u.pass === password);
-    
     if (usuarioValido) {
         req.session.user = usuarioValido.user;
         req.session.nome = usuarioValido.nome;
@@ -195,8 +178,64 @@ app.get('/api/session', requireAuth, (req, res) => {
     });
 });
 
+// ==================== API CONSULTADOR DE ANTECEDENTES (DATAJUD) ====================
+app.post('/api/consultar-antecedentes', requireAuth, (req, res) => {
+    const { cpf, nome } = req.body;
+    
+    console.log(`[CONSULTA] CPF: ${cpf}, Nome: ${nome}`);
+    
+    if (!cpf && !nome) {
+        return res.status(400).json({ error: 'CPF ou Nome é obrigatório' });
+    }
+    
+    const pythonScript = path.join(__dirname, 'scripts', 'consulta_datajud_robusto.py');
+    
+    if (!fs.existsSync(pythonScript)) {
+        console.error(`[ERRO] Script não encontrado: ${pythonScript}`);
+        return res.status(500).json({ error: 'Script de consulta não encontrado' });
+    }
+    
+    const cpfLimpo = cpf ? cpf.replace(/\D/g, '') : '';
+    
+    exec(`python "${pythonScript}" "${cpfLimpo}"`, 
+        { timeout: 60000 },
+        (error, stdout, stderr) => {
+            if (error) {
+                console.error('Erro no script:', error);
+                return res.status(500).json({ 
+                    error: 'Erro ao consultar',
+                    details: stderr || error.message
+                });
+            }
+            
+            const output = stdout.toString();
+            console.log('Python output:', output);
+            
+            let status = 'pendente';
+            let mensagem = '';
+            
+            if (output.includes('APROVADO')) {
+                status = 'aprovado';
+                mensagem = '✅ Nada consta na base do CNJ. Motorista aprovado!';
+            } else if (output.includes('REPROVADO')) {
+                status = 'reprovado';
+                mensagem = '❌ Processos encontrados. Motorista reprovado.';
+            } else {
+                status = 'erro';
+                mensagem = '⚠️ Erro na consulta. Tente novamente.';
+            }
+            
+            res.json({ 
+                status, 
+                mensagem, 
+                cpf_consultado: cpfLimpo 
+            });
+        }
+    );
+});
+
 // ==================== API DE COORDENADAS ====================
-app.get('/api/coords', requireAuth, requireAdmin, (req, res) => {  // 🔥 AGORA SÓ ADMIN
+app.get('/api/coords', requireAuth, requireAdmin, (req, res) => {
     const tipo = req.query.tipo || 'moto';
     const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
     const filePath = path.join(__dirname, 'assets', fileName);
@@ -208,7 +247,7 @@ app.get('/api/coords', requireAuth, requireAdmin, (req, res) => {  // 🔥 AGORA
     }
 });
 
-app.post('/api/save-coords', requireAuth, requireAdmin, (req, res) => {  // 🔥 AGORA SÓ ADMIN
+app.post('/api/save-coords', requireAuth, requireAdmin, (req, res) => {
     const tipo = req.query.tipo || 'moto';
     const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
     const assetsPath = path.join(__dirname, 'assets');
@@ -234,12 +273,16 @@ app.get('/emissao', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'emissao.html'));
 });
 
-app.get('/calibrar', requireAuth, requireAdmin, (req, res) => {  // 🔥 AGORA SÓ ADMIN
+app.get('/calibrar', requireAuth, requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'index.html'));
 });
 
 app.get('/usuarios', requireAuth, requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'usuarios.html'));
+});
+
+app.get('/consultador', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'consultador.html'));
 });
 
 // ==================== ROTA DE GERAÇÃO DE PDF ====================
@@ -265,10 +308,10 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         const coordsPath = path.join(__dirname, 'assets', coordsJSONName);
 
         if (!fs.existsSync(pdfPath)) {
-            return res.status(404).send(`Arquivo PDF base (${templatePDFName}) não encontrado na pasta assets.`);
+            return res.status(404).send(`Arquivo PDF base (${templatePDFName}) não encontrado.`);
         }
         if (!fs.existsSync(coordsPath)) {
-            return res.status(404).send(`Template de coordenadas (${coordsJSONName}) não encontrado. Por favor, calibre as posições primeiro.`);
+            return res.status(404).send(`Template de coordenadas (${coordsJSONName}) não encontrado.`);
         }
 
         const existingPdfBytes = fs.readFileSync(pdfPath);
@@ -348,9 +391,13 @@ app.get('/', (req, res) => {
 
 // ==================== INICIAR SERVIDOR ====================
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
-    console.log(`📋 Login disponível em http://localhost:${PORT}/login.html`);
-    console.log(`👑 Admin: admin / 123`);
-    console.log(`👤 Usuário comum: chcontas / master2026`);
-    console.log(`🔧 Calibrador: APENAS ADMIN`);
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`🚀 SERVIDOR CH VENDAS`);
+    console.log(`${'='.repeat(50)}`);
+    console.log(`📍 Local: http://localhost:${PORT}`);
+    console.log(`🔑 Admin: Newbr47 / 88837024`);
+    console.log(`📄 Emissão CRLV: /emissao`);
+    console.log(`🔍 Consultador: /consultador`);
+    console.log(`👥 Usuários: /usuarios`);
+    console.log(`${'='.repeat(50)}\n`);
 });
