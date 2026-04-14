@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Bot de Bicos | CH Vendas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 24px;
+        }
+        .job-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .job-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+        }
+        .whatsapp-btn {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-2xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-6">
+            <div class="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <i class="fab fa-whatsapp text-white text-3xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-white">Bot de Bicos</h1>
+            <p class="text-gray-300 text-sm">Divulgação de bicos e oportunidades</p>
+        </div>
+
+        <!-- Formulário para novo bico (só admin vê) -->
+        <div id="adminForm" class="glass-card rounded-2xl shadow-xl p-6 mb-6 hidden">
+            <h2 class="font-bold text-lg text-gray-800 mb-4">📝 Adicionar Novo Bico</h2>
+            <form id="novoBicoForm" class="space-y-3">
+                <input type="text" id="titulo" placeholder="Título do bico" class="w-full p-3 border rounded-xl" required>
+                <textarea id="descricao" placeholder="Descrição do bico..." rows="3" class="w-full p-3 border rounded-xl" required></textarea>
+                <input type="text" id="local" placeholder="Local (cidade/bairro)" class="w-full p-3 border rounded-xl">
+                <input type="text" id="valor" placeholder="Valor (ex: R$ 100,00)" class="w-full p-3 border rounded-xl">
+                <input type="text" id="contato" placeholder="Contato (WhatsApp)" class="w-full p-3 border rounded-xl">
+                <button type="submit" class="w-full whatsapp-btn text-white font-bold py-3 rounded-xl transition-all hover:scale-105">
+                    <i class="fab fa-whatsapp mr-2"></i> Publicar Bico
+                </button>
+            </form>
+        </div>
+
+        <!-- Lista de Bicos -->
+        <div id="listaBicos" class="space-y-4">
+            <div class="text-center text-white py-8">
+                <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                <p>Carregando bicos disponíveis...</p>
+            </div>
+        </div>
+
+        <!-- Botão Voltar -->
+        <div class="text-center mt-6">
+            <a href="/home" class="text-gray-300 text-sm hover:text-white transition-colors">
+                <i class="fas fa-arrow-left mr-1"></i> Voltar ao Painel
+            </a>
+        </div>
+    </div>
+
+    <script>
+        let userRole = null;
+        
+        // Carregar sessão do usuário
+        async function loadSession() {
+            try {
+                const response = await fetch('/api/session');
+                const data = await response.json();
+                userRole = data.role;
+                
+                if (userRole === 'admin') {
+                    document.getElementById('adminForm').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar sessão:', error);
+            }
+        }
+        
+        // Carregar bicos
+        async function carregarBicos() {
+            try {
+                const response = await fetch('/api/bicos');
+                const bicos = await response.json();
+                
+                const container = document.getElementById('listaBicos');
+                
+                if (bicos.length === 0) {
+                    container.innerHTML = `
+                        <div class="glass-card rounded-2xl p-8 text-center text-gray-500">
+                            <i class="fas fa-briefcase text-4xl mb-3"></i>
+                            <p>Nenhum bico disponível no momento.</p>
+                            <p class="text-sm mt-2">Volte em breve!</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = bicos.map(bico => `
+                    <div class="glass-card rounded-2xl p-5 job-card" onclick="abrirWhatsApp('${bico.contato}', '${bico.titulo}')">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-lg text-gray-800">${bico.titulo}</h3>
+                            ${bico.valor ? `<span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">${bico.valor}</span>` : ''}
+                        </div>
+                        <p class="text-gray-600 text-sm mb-3">${bico.descricao}</p>
+                        <div class="flex justify-between items-center text-xs text-gray-500">
+                            ${bico.local ? `<span><i class="fas fa-map-marker-alt mr-1"></i> ${bico.local}</span>` : ''}
+                            <span><i class="far fa-calendar-alt mr-1"></i> ${new Date(bico.data).toLocaleDateString()}</span>
+                        </div>
+                        <div class="mt-3 pt-2 border-t border-gray-200 flex justify-between items-center">
+                            <span class="text-green-600 text-sm"><i class="fab fa-whatsapp mr-1"></i> Clique para candidatar</span>
+                            <i class="fas fa-arrow-right text-green-600"></i>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Erro ao carregar bicos:', error);
+            }
+        }
+        
+        function abrirWhatsApp(contato, titulo) {
+            let numero = contato.replace(/\D/g, '');
+            if (numero.startsWith('55')) {
+                numero = numero.substring(2);
+            }
+            const mensagem = encodeURIComponent(`Olá! Vi o bico "${titulo}" no site CH Vendas e tenho interesse.`);
+            window.open(`https://wa.me/55${numero}?text=${mensagem}`, '_blank');
+        }
+        
+        // Enviar novo bico
+        document.getElementById('novoBicoForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const bico = {
+                titulo: document.getElementById('titulo').value,
+                descricao: document.getElementById('descricao').value,
+                local: document.getElementById('local').value,
+                valor: document.getElementById('valor').value,
+                contato: document.getElementById('contato').value,
+                data: new Date().toISOString()
+            };
+            
+            try {
+                const response = await fetch('/api/bicos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bico)
+                });
+                
+                if (response.ok) {
+                    alert('Bico publicado com sucesso!');
+                    document.getElementById('novoBicoForm').reset();
+                    carregarBicos();
+                } else {
+                    alert('Erro ao publicar bico');
+                }
+            } catch (error) {
+                alert('Erro ao publicar bico');
+            }
+        });
+        
+        loadSession();
+        carregarBicos();
+    </script>
+</body>
+</html>

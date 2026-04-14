@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const { exec } = require('child_process');
+const mercadopago = require('mercadopago');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +20,11 @@ app.use(session({
     saveUninitialized: true,
     cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
+
+// Configurar Mercado Pago
+mercadopago.configure({
+    access_token: 'APP_USR-6089853392725639-040723-b9b1f076c942da11f2a006271503d5a2-2949958903'
+});
 
 // ==================== MIDDLEWARES ====================
 const requireAuth = (req, res, next) => {
@@ -191,11 +197,11 @@ app.post('/api/consultar-antecedentes', requireAuth, (req, res) => {
     const pythonScript = path.join(__dirname, 'scripts', 'consulta_datajud_robusto.py');
     
     if (!fs.existsSync(pythonScript)) {
-        console.error(`[ERRO] Script não encontrado: ${pythonScript}`);
         return res.status(500).json({ error: 'Script de consulta não encontrado' });
     }
     
     const cpfLimpo = cpf ? cpf.replace(/\D/g, '') : '';
+    const nomeLimpo = nome ? nome.toUpperCase().trim() : '';
     
     exec(`python "${pythonScript}" "${cpfLimpo}"`, 
         { timeout: 60000 },
@@ -232,6 +238,73 @@ app.post('/api/consultar-antecedentes', requireAuth, (req, res) => {
             });
         }
     );
+});
+
+// ==================== API DO BOT DE BICOS (MERCADO PAGO) ====================
+
+// Arquivo para estatísticas
+const BOT_STATS_FILE = path.join(__dirname, 'data', 'bot_stats.json');
+
+if (!fs.existsSync(BOT_STATS_FILE)) {
+    fs.writeFileSync(BOT_STATS_FILE, JSON.stringify({ vendas: 0, total_faturado: 0, ultimas_vendas: [] }));
+}
+
+// Endpoint para gerar PIX
+app.post('/api/bot/gerar-pix', requireAuth, requireAdmin, async (req, res) => {
+    const { valor, descricao } = req.body;
+    
+    try {
+        const payment = await mercadopago.payment.create({
+            body: {
+                transaction_amount: Number(valor),
+                description: descricao || 'Compra de bico',
+                payment_method_id: 'pix',
+                payer: { email: 'cliente@chvendas.com.br' }
+            }
+        });
+        
+        res.json({
+            id: payment.body.id,
+            qr_code: payment.body.point_of_interaction.transaction_data.qr_code_base64,
+            copia_cola: payment.body.point_of_interaction.transaction_data.qr_code
+        });
+    } catch (err) {
+        console.error('Erro ao gerar PIX:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Endpoint para verificar pagamento
+app.get('/api/bot/verificar-pagamento/:id', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const payment = await mercadopago.payment.findById(req.params.id);
+        
+        // Se pagamento aprovado, atualizar estatísticas
+        if (payment.body.status === 'approved') {
+            const stats = JSON.parse(fs.readFileSync(BOT_STATS_FILE, 'utf8'));
+            stats.vendas++;
+            stats.total_faturado += payment.body.transaction_amount;
+            stats.ultimas_vendas.unshift({
+                id: payment.body.id,
+                valor: payment.body.transaction_amount,
+                data: new Date().toISOString(),
+                status: 'approved'
+            });
+            stats.ultimas_vendas = stats.ultimas_vendas.slice(0, 20);
+            fs.writeFileSync(BOT_STATS_FILE, JSON.stringify(stats, null, 2));
+        }
+        
+        res.json({ status: payment.body.status });
+    } catch (err) {
+        console.error('Erro ao verificar pagamento:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Endpoint para estatísticas do bot
+app.get('/api/bot/stats', requireAuth, requireAdmin, (req, res) => {
+    const stats = JSON.parse(fs.readFileSync(BOT_STATS_FILE, 'utf8'));
+    res.json(stats);
 });
 
 // ==================== API DE COORDENADAS ====================
@@ -283,6 +356,14 @@ app.get('/usuarios', requireAuth, requireAdmin, (req, res) => {
 
 app.get('/consultador', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'consultador.html'));
+});
+
+app.get('/bicos', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'bicos.html'));
+});
+
+app.get('/bot-admin', requireAuth, requireAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'bot-admin.html'));
 });
 
 // ==================== ROTA DE GERAÇÃO DE PDF ====================
@@ -399,5 +480,7 @@ app.listen(PORT, () => {
     console.log(`📄 Emissão CRLV: /emissao`);
     console.log(`🔍 Consultador: /consultador`);
     console.log(`👥 Usuários: /usuarios`);
+    console.log(`🤖 Bot de Bicos: /bicos`);
+    console.log(`💰 Admin Bot: /bot-admin`);
     console.log(`${'='.repeat(50)}\n`);
 });

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Bot de Bicos | CH Vendas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 p-4">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white rounded-2xl shadow-xl p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-2xl font-bold">🤖 Bot de Bicos</h1>
+                <a href="/home" class="text-blue-600 hover:text-blue-800">← Voltar</a>
+            </div>
+
+            <!-- Cards de Estatísticas -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-4 text-white">
+                    <p class="text-sm opacity-90">Total de Vendas</p>
+                    <p class="text-2xl font-bold" id="totalVendas">0</p>
+                </div>
+                <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+                    <p class="text-sm opacity-90">Faturamento</p>
+                    <p class="text-2xl font-bold" id="totalFaturamento">R$ 0</p>
+                </div>
+                <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-4 text-white">
+                    <p class="text-sm opacity-90">Status do Bot</p>
+                    <p class="text-2xl font-bold" id="statusBot">🟢 Online</p>
+                </div>
+            </div>
+
+            <!-- Gerar PIX -->
+            <div class="border-t pt-6 mb-6">
+                <h2 class="font-bold text-lg mb-4">💰 Gerar PIX para Teste</h2>
+                <div class="flex gap-4">
+                    <input type="number" id="valor" placeholder="Valor (R$)" class="border rounded-xl px-4 py-2 w-32">
+                    <input type="text" id="descricao" placeholder="Descrição" class="border rounded-xl px-4 py-2 flex-1">
+                    <button onclick="gerarPix()" class="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700">
+                        Gerar PIX
+                    </button>
+                </div>
+                <div id="pixResultado" class="mt-4 hidden">
+                    <div class="bg-gray-100 rounded-xl p-4">
+                        <img id="qrCode" class="mx-auto w-48 h-48 mb-3">
+                        <p id="copiaCola" class="text-sm break-all bg-white p-2 rounded"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Últimas Vendas -->
+            <div class="border-t pt-6">
+                <h2 class="font-bold text-lg mb-4">📊 Últimas Vendas</h2>
+                <div id="ultimasVendas" class="space-y-2">
+                    <p class="text-gray-500 text-center py-4">Nenhuma venda registrada</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function carregarStats() {
+            try {
+                const response = await fetch('/api/bot/stats');
+                const data = await response.json();
+                document.getElementById('totalVendas').innerText = data.vendas || 0;
+                document.getElementById('totalFaturamento').innerText = `R$ ${(data.total_faturado || 0).toFixed(2)}`;
+            } catch (error) {
+                console.error('Erro ao carregar stats:', error);
+            }
+        }
+
+        async function gerarPix() {
+            const valor = document.getElementById('valor').value;
+            const descricao = document.getElementById('descricao').value;
+            
+            if (!valor) {
+                alert('Digite um valor');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/bot/gerar-pix', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ valor: parseFloat(valor), descricao })
+                });
+                
+                const data = await response.json();
+                
+                document.getElementById('qrCode').src = `data:image/png;base64,${data.qr_code}`;
+                document.getElementById('copiaCola').innerText = data.copia_cola;
+                document.getElementById('pixResultado').classList.remove('hidden');
+                
+                // Verificar pagamento automaticamente
+                verificarPagamento(data.id);
+            } catch (error) {
+                alert('Erro ao gerar PIX');
+            }
+        }
+        
+        async function verificarPagamento(id) {
+            const interval = setInterval(async () => {
+                const response = await fetch(`/api/bot/verificar-pagamento/${id}`);
+                const data = await response.json();
+                
+                if (data.status === 'approved') {
+                    clearInterval(interval);
+                    alert('✅ Pagamento confirmado!');
+                    carregarStats();
+                }
+            }, 5000);
+        }
+        
+        carregarStats();
+    </script>
+</body>
+</html>
