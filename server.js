@@ -27,9 +27,104 @@ const client = new MercadoPagoConfig({
 });
 const payment = new Payment(client);
 
-// URL do bot via ngrok (atualize quando reiniciar o ngrok)
-const BOT_API_URL = 'http://localhost:3001';
-const VPS_API_URL = 'http://localhost:5000';
+// ==================== GERENCIAMENTO DE USUÁRIOS ====================
+const USERS_FILE = path.join(__dirname, 'data', 'users.json');
+
+if (!fs.existsSync(path.join(__dirname, 'data'))) {
+    fs.mkdirSync(path.join(__dirname, 'data'));
+}
+
+const defaultUsers = [
+    { 
+        id: 1, 
+        user: 'Newbr47', 
+        pass: '88837024', 
+        role: 'admin', 
+        nome: 'Carlos Henrique', 
+        plano: 'MASTER PREMIUM', 
+        createdAt: new Date().toISOString(), 
+        saldo: 100,
+        transacoes: []
+    },
+    { 
+        id: 2, 
+        user: 'chcontas', 
+        pass: 'master2026', 
+        role: 'user', 
+        nome: 'CH Contas', 
+        plano: 'OPERADOR', 
+        createdAt: new Date().toISOString(), 
+        saldo: 50,
+        transacoes: []
+    }
+];
+
+function loadUserData() {
+    if (!fs.existsSync(USERS_FILE)) {
+        fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2));
+        return defaultUsers;
+    }
+    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+}
+
+function saveUserData(users) {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+// ==================== FUNÇÕES DE CARTEIRA ====================
+async function debitarSaldo(userId, valor, servico) {
+    const users = loadUserData();
+    const userIndex = users.findIndex(u => u.id == userId);
+    
+    if (userIndex === -1) {
+        throw new Error('Usuário não encontrado');
+    }
+    
+    const saldoAtual = users[userIndex].saldo || 0;
+    
+    if (saldoAtual < valor) {
+        throw new Error(`Saldo insuficiente. Necessário R$ ${valor.toFixed(2)}`);
+    }
+    
+    users[userIndex].saldo = saldoAtual - valor;
+    
+    // Registrar transação
+    if (!users[userIndex].transacoes) users[userIndex].transacoes = [];
+    users[userIndex].transacoes.unshift({
+        tipo: 'saida',
+        servico: servico,
+        valor: valor,
+        data: new Date().toISOString(),
+        saldo_apos: users[userIndex].saldo
+    });
+    
+    saveUserData(users);
+    return true;
+}
+
+async function creditarSaldo(userId, valor, descricao) {
+    const users = loadUserData();
+    const userIndex = users.findIndex(u => u.id == userId);
+    
+    if (userIndex === -1) {
+        throw new Error('Usuário não encontrado');
+    }
+    
+    users[userIndex].saldo = (users[userIndex].saldo || 0) + valor;
+    
+    // Registrar transação
+    if (!users[userIndex].transacoes) users[userIndex].transacoes = [];
+    users[userIndex].transacoes.unshift({
+        tipo: 'entrada',
+        servico: descricao,
+        valor: valor,
+        data: new Date().toISOString(),
+        saldo_apos: users[userIndex].saldo
+    });
+    
+    saveUserData(users);
+    return true;
+}
 
 // ==================== MIDDLEWARES ====================
 const requireAuth = (req, res, next) => {
@@ -49,7 +144,7 @@ const requireAdmin = (req, res, next) => {
             <html>
             <head>
                 <script>
-                    alert('⛔ ACESSO NEGADO! Apenas administradores chefes podem acessar esta área.');
+                    alert('⛔ ACESSO NEGADO! Apenas administradores podem acessar esta área.');
                     window.location.href = '/home';
                 </script>
             </head>
@@ -59,98 +154,12 @@ const requireAdmin = (req, res, next) => {
     }
 };
 
-// ==================== GERENCIAMENTO DE USUÁRIOS ====================
-const USERS_FILE = path.join(__dirname, 'data', 'users.json');
-
-if (!fs.existsSync(path.join(__dirname, 'data'))) {
-    fs.mkdirSync(path.join(__dirname, 'data'));
-}
-
-const defaultUsers = [
-    { id: 1, user: 'Newbr47', pass: '88837024', role: 'admin', nome: 'Carlos Henrique', plano: 'MASTER PREMIUM', createdAt: new Date().toISOString(), saldo: 100 },
-    { id: 2, user: 'chcontas', pass: 'master2026', role: 'user', nome: 'CH Contas', plano: 'OPERADOR', createdAt: new Date().toISOString(), saldo: 50 }
-];
-
-function loadUsers() {
-    if (!fs.existsSync(USERS_FILE)) {
-        fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2));
-        return defaultUsers;
-    }
-    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-}
-
-function saveUsers(users) {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-}
-
-// API de usuários
-app.get('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
-    const users = loadUsers();
-    const safeUsers = users.map(u => ({ ...u, pass: '********' }));
-    res.json(safeUsers);
-});
-
-app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
-    const { user, pass, role, nome, saldo } = req.body;
-    if (!user || !pass) {
-        return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
-    }
-    const users = loadUsers();
-    if (users.find(u => u.user === user)) {
-        return res.status(400).json({ error: 'Usuário já existe!' });
-    }
-    const newUser = {
-        id: users.length + 1,
-        user: user,
-        pass: pass,
-        role: role || 'user',
-        nome: nome || user,
-        plano: role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR',
-        createdAt: new Date().toISOString(),
-        saldo: saldo || 0
-    };
-    users.push(newUser);
-    saveUsers(users);
-    res.json({ success: true, user: { ...newUser, pass: '********' } });
-});
-
-app.put('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
-    const { id } = req.params;
-    const { user, pass, role, nome, saldo } = req.body;
-    const users = loadUsers();
-    const index = users.findIndex(u => u.id == id);
-    if (index === -1) {
-        return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-    users[index].user = user || users[index].user;
-    if (pass) users[index].pass = pass;
-    users[index].role = role || users[index].role;
-    users[index].nome = nome || users[index].nome;
-    users[index].plano = users[index].role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR';
-    if (saldo !== undefined) users[index].saldo = saldo;
-    saveUsers(users);
-    res.json({ success: true, user: { ...users[index], pass: '********' } });
-});
-
-app.delete('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
-    const { id } = req.params;
-    const users = loadUsers();
-    if (users.find(u => u.id == id && u.user === req.session.user)) {
-        return res.status(400).json({ error: 'Você não pode deletar seu próprio usuário!' });
-    }
-    const filteredUsers = users.filter(u => u.id != id);
-    if (filteredUsers.length === users.length) {
-        return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-    saveUsers(filteredUsers);
-    res.json({ success: true });
-});
-
 // ==================== ROTAS PÚBLICAS ====================
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
-    const users = loadUsers();
+    const users = loadUserData();
     const usuarioValido = users.find(u => u.user === username && u.pass === password);
+    
     if (usuarioValido) {
         req.session.user = usuarioValido.user;
         req.session.nome = usuarioValido.nome;
@@ -181,7 +190,7 @@ app.get('/logout', (req, res) => {
 
 // ==================== API DE SESSÃO ====================
 app.get('/api/session', requireAuth, (req, res) => {
-    const users = loadUsers();
+    const users = loadUserData();
     const user = users.find(u => u.user === req.session.user);
     res.json({
         user: req.session.user,
@@ -194,81 +203,35 @@ app.get('/api/session', requireAuth, (req, res) => {
     });
 });
 
-// ==================== API DO MINI APP (LOJA DE BICOS) ====================
-
-// Rota para comparar foto (proxy para o worker)
-app.post('/api/compare', async (req, res) => {
-    const { imagem, categoria } = req.body;
-    
-    try {
-        // Converter base64 para buffer
-        const base64Data = imagem.split(',')[1];
-        const buffer = Buffer.from(base64Data, 'base64');
-        
-        // Chamar o worker facial
-        const response = await fetch('http://127.0.0.1:5000/compare_protected', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/octet-stream',
-                'categoria': categoria
-            },
-            body: buffer
-        });
-        
-        const data = await response.json();
-        res.json(data);
-    } catch (err) {
-        console.error('Erro ao comparar foto:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Saldo do usuário
-app.get('/api/user/saldo', requireAuth, (req, res) => {
-    const users = loadUsers();
+// ==================== API DE CARTEIRA ====================
+app.get('/api/saldo', requireAuth, (req, res) => {
+    const users = loadUserData();
     const user = users.find(u => u.id === req.session.userId);
     res.json({ saldo: user?.saldo || 0 });
 });
 
-// Comprar com saldo
-app.post('/api/comprar/saldo', requireAuth, async (req, res) => {
-    const { bicoId, valor } = req.body;
-    const users = loadUsers();
-    const userIndex = users.findIndex(u => u.id === req.session.userId);
-    
-    if (userIndex === -1) {
-        return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-    
-    if (users[userIndex].saldo < valor) {
-        return res.json({ success: false, error: 'Saldo insuficiente' });
-    }
-    
-    // Debitar saldo
-    users[userIndex].saldo -= valor;
-    saveUsers(users);
-    
-    // Buscar dados do BICO (simulado)
-    const dadosBico = "CPF: 123.456.789-00\nCNH: 12345678900\nData Nasc: 01/01/1990\nEndereço: Rua Exemplo, 123";
-    
-    res.json({ 
-        success: true, 
-        dados: dadosBico,
-        saldo: users[userIndex].saldo
-    });
+app.get('/api/extrato', requireAuth, (req, res) => {
+    const users = loadUserData();
+    const user = users.find(u => u.id === req.session.userId);
+    res.json({ transacoes: user?.transacoes || [] });
 });
 
-// Gerar PIX para compra
-app.post('/api/comprar/pix', requireAuth, async (req, res) => {
-    const { valor, descricao } = req.body;
+// Gerar PIX para recarga
+app.post('/api/gerar-recarga', requireAuth, async (req, res) => {
+    const { valor } = req.body;
+    const userId = req.session.userId;
+    
+    if (!valor || valor < 10) {
+        return res.status(400).json({ error: 'Valor mínimo de R$ 10,00' });
+    }
     
     try {
         const response = await payment.create({
             body: {
                 transaction_amount: Number(valor),
-                description: descricao || 'Compra de bico',
+                description: `Recarga de saldo - CH Vendas`,
                 payment_method_id: 'pix',
-                payer: { email: `${req.session.userId}@chvendas.com.br` }
+                payer: { email: `${userId}@chvendas.com.br` }
             }
         });
         
@@ -276,174 +239,65 @@ app.post('/api/comprar/pix', requireAuth, async (req, res) => {
             success: true,
             transactionId: response.id,
             qrCode: response.point_of_interaction.transaction_data.qr_code_base64,
-            pixCode: response.point_of_interaction.transaction_data.qr_code
+            pixCode: response.point_of_interaction.transaction_data.qr_code,
+            valor: valor
         });
     } catch (err) {
         console.error('Erro ao gerar PIX:', err);
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// Confirmar pagamento PIX
-app.get('/api/comprar/confirmar-pix/:id', async (req, res) => {
-    try {
-        const response = await payment.get({ id: req.params.id });
-        res.json({ status: response.status });
-    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// ==================== API CONSULTADOR DE ANTECEDENTES ====================
-app.post('/api/consultar-antecedentes', requireAuth, (req, res) => {
-    const { cpf, nome } = req.body;
+// Confirmar recarga
+app.post('/api/confirmar-recarga', requireAuth, async (req, res) => {
+    const { transactionId, valor } = req.body;
+    const userId = req.session.userId;
     
-    console.log(`[CONSULTA] CPF: ${cpf}, Nome: ${nome}`);
+    try {
+        const response = await payment.get({ id: transactionId });
+        
+        if (response.body.status === 'approved') {
+            await creditarSaldo(userId, valor, `Recarga de R$ ${valor.toFixed(2)}`);
+            const users = loadUserData();
+            const user = users.find(u => u.id === userId);
+            res.json({ success: true, saldo: user?.saldo || 0 });
+        } else {
+            res.json({ success: false, status: response.body.status });
+        }
+    } catch (err) {
+        console.error('Erro ao confirmar recarga:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==================== API CONSULTADOR ====================
+app.post('/api/consultar-antecedentes', requireAuth, async (req, res) => {
+    const { cpf, nome } = req.body;
+    const userId = req.session.userId;
+    const valorServico = 10;
     
     if (!cpf && !nome) {
         return res.status(400).json({ error: 'CPF ou Nome é obrigatório' });
     }
     
-    const pythonScript = path.join(__dirname, 'scripts', 'consulta_datajud_robusto.py');
-    
-    if (!fs.existsSync(pythonScript)) {
-        return res.status(500).json({ error: 'Script de consulta não encontrado' });
-    }
-    
-    const cpfLimpo = cpf ? cpf.replace(/\D/g, '') : '';
-    
-    exec(`python "${pythonScript}" "${cpfLimpo}"`, 
-        { timeout: 60000 },
-        (error, stdout, stderr) => {
-            if (error) {
-                console.error('Erro no script:', error);
-                return res.status(500).json({ 
-                    error: 'Erro ao consultar',
-                    details: stderr || error.message
-                });
-            }
-            
-            const output = stdout.toString();
-            console.log('Python output:', output);
-            
-            let status = 'pendente';
-            let mensagem = '';
-            
-            if (output.includes('APROVADO')) {
-                status = 'aprovado';
-                mensagem = '✅ Nada consta na base do CNJ. Motorista aprovado!';
-            } else if (output.includes('REPROVADO')) {
-                status = 'reprovado';
-                mensagem = '❌ Processos encontrados. Motorista reprovado.';
-            } else {
-                status = 'erro';
-                mensagem = '⚠️ Erro na consulta. Tente novamente.';
-            }
-            
-            res.json({ 
-                status, 
-                mensagem, 
-                cpf_consultado: cpfLimpo 
-            });
-        }
-    );
-});
-
-// ==================== API DO BOT DE BICOS ====================
-const BOT_STATS_FILE = path.join(__dirname, 'data', 'bot_stats.json');
-
-if (!fs.existsSync(BOT_STATS_FILE)) {
-    fs.writeFileSync(BOT_STATS_FILE, JSON.stringify({ vendas: 0, total_faturado: 0, ultimas_vendas: [] }));
-}
-
-app.get('/api/bot/stats', requireAuth, requireAdmin, (req, res) => {
-    const stats = JSON.parse(fs.readFileSync(BOT_STATS_FILE, 'utf8'));
-    res.json(stats);
-});
-
-app.get('/api/bot-status', requireAuth, async (req, res) => {
     try {
-        const response = await fetch(`${BOT_API_URL}/api/bot/status`);
-        if (response.ok) {
-            const data = await response.json();
-            res.json({ status: 'online', ...data });
-        } else {
-            res.json({ status: 'offline' });
-        }
-    } catch (error) {
-        res.json({ status: 'offline', error: error.message });
+        // Debitar saldo
+        await debitarSaldo(userId, valorServico, 'Consulta de antecedentes');
+        
+        // Simular consulta (aqui você integra com a API real)
+        const resultado = {
+            status: 'aprovado',
+            mensagem: '✅ Nada consta na base de dados. Motorista aprovado!',
+            processos: []
+        };
+        
+        res.json(resultado);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
     }
 });
 
-// ==================== API DE COORDENADAS ====================
-app.get('/api/coords', requireAuth, requireAdmin, (req, res) => {
-    const tipo = req.query.tipo || 'moto';
-    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
-    const filePath = path.join(__dirname, 'assets', fileName);
-    
-    if (fs.existsSync(filePath)) {
-        res.json(JSON.parse(fs.readFileSync(filePath, 'utf8')));
-    } else {
-        res.json({});
-    }
-});
-
-app.post('/api/save-coords', requireAuth, requireAdmin, (req, res) => {
-    const tipo = req.query.tipo || 'moto';
-    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
-    const assetsPath = path.join(__dirname, 'assets');
-    
-    if (!fs.existsSync(assetsPath)) fs.mkdirSync(assetsPath);
-    
-    const filePath = path.join(assetsPath, fileName);
-    
-    try {
-        fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
-        res.sendStatus(200);
-    } catch (e) {
-        res.status(500).send("Erro ao salvar arquivo de coordenadas.");
-    }
-});
-
-// ==================== ROTAS PROTEGIDAS ====================
-app.get('/home', requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'private', 'home.html'));
-});
-
-app.get('/emissao', requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'private', 'emissao.html'));
-});
-
-app.get('/calibrar', requireAuth, requireAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'private', 'index.html'));
-});
-
-app.get('/usuarios', requireAuth, requireAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'private', 'usuarios.html'));
-});
-
-app.get('/consultador', requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'private', 'consultador.html'));
-});
-
-app.get('/bicos', requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'private', 'bicos.html'));
-});
-
-app.get('/bot-admin', requireAuth, requireAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, 'private', 'bot-admin.html'));
-});
-
-app.get('/chat-bot', requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'private', 'chat-bot.html'));
-});
-
-// Mini App - Loja de BICOS (pública, sem autenticação)
-app.get('/loja', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'loja.html'));
-});
-
-// ==================== ROTA DE GERAÇÃO DE PDF ====================
+// ==================== API DE GERAÇÃO DE PDF ====================
 function formatarCpfCnpj(valor) {
     const limpo = valor.replace(/\D/g, '');
     if (limpo.length === 11) {
@@ -457,8 +311,13 @@ function formatarCpfCnpj(valor) {
 app.post('/api/gerar-final', requireAuth, async (req, res) => {
     try {
         const dados = req.body;
-        const tipo = dados.tipo_template || dados.tipo_veiculo || 'carro';
+        const userId = req.session.userId;
+        const valorServico = 40;
         
+        // Debitar saldo
+        await debitarSaldo(userId, valorServico, 'Emissão CRLV');
+        
+        const tipo = dados.tipo_template || dados.tipo_veiculo || 'carro';
         const templatePDFName = tipo === 'moto' ? 'template_moto.pdf' : 'template_carro.pdf';
         const coordsJSONName = tipo === 'moto' ? 'modelo_moto.template.json' : 'modelo_carro.template.json';
         
@@ -466,10 +325,10 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         const coordsPath = path.join(__dirname, 'assets', coordsJSONName);
 
         if (!fs.existsSync(pdfPath)) {
-            return res.status(404).send(`Arquivo PDF base (${templatePDFName}) não encontrado.`);
+            return res.status(404).send(`Arquivo PDF base não encontrado.`);
         }
         if (!fs.existsSync(coordsPath)) {
-            return res.status(404).send(`Template de coordenadas (${coordsJSONName}) não encontrado.`);
+            return res.status(404).send(`Template de coordenadas não encontrado.`);
         }
 
         const existingPdfBytes = fs.readFileSync(pdfPath);
@@ -478,6 +337,7 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         const firstPage = pdfDoc.getPages()[0];
         const coords = JSON.parse(fs.readFileSync(coordsPath, 'utf8'));
 
+        // Limpar áreas
         Object.keys(coords).forEach(key => {
             const pos = coords[key];
             if (pos.x !== undefined && pos.y !== undefined) {
@@ -495,6 +355,7 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
             }
         });
 
+        // Preencher campos
         Object.keys(coords).forEach(key => {
             const pos = coords[key];
             let valor = dados[key] || "";
@@ -534,35 +395,143 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
 
     } catch (error) {
         console.error("Erro crítico:", error);
-        res.status(500).send("Erro interno ao processar o documento PDF.");
+        if (error.message.includes('Saldo insuficiente')) {
+            res.status(400).send(error.message);
+        } else {
+            res.status(500).send("Erro interno ao processar o documento PDF.");
+        }
     }
 });
 
-// Adicionar no server.js
-app.post('/api/recarregar', async (req, res) => {
-    const { valor } = req.body;
-    const userId = req.session.userId;
+// ==================== API DE COORDENADAS ====================
+app.get('/api/coords', requireAuth, requireAdmin, (req, res) => {
+    const tipo = req.query.tipo || 'moto';
+    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
+    const filePath = path.join(__dirname, 'assets', fileName);
     
-    // Gerar PIX para recarga
-    const pix = await gerarPix(valor, userId);
-    
-    res.json({
-        qrCode: pix.qr_code,
-        pixCode: pix.copia_cola,
-        transactionId: pix.id
-    });
+    if (fs.existsSync(filePath)) {
+        res.json(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+    } else {
+        res.json({});
+    }
 });
 
-app.post('/api/confirmar-recarga', async (req, res) => {
-    const { transactionId, valor } = req.body;
-    const userId = req.session.userId;
+app.post('/api/save-coords', requireAuth, requireAdmin, (req, res) => {
+    const tipo = req.query.tipo || 'moto';
+    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
+    const assetsPath = path.join(__dirname, 'assets');
     
-    // Verificar pagamento e adicionar saldo
-    const userData = loadUserData();
-    userData[userId].saldo = (userData[userId].saldo || 0) + valor;
-    saveUserData(userData);
+    if (!fs.existsSync(assetsPath)) fs.mkdirSync(assetsPath);
     
-    res.json({ success: true, saldo: userData[userId].saldo });
+    const filePath = path.join(assetsPath, fileName);
+    
+    try {
+        fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
+        res.sendStatus(200);
+    } catch (e) {
+        res.status(500).send("Erro ao salvar arquivo de coordenadas.");
+    }
+});
+
+// ==================== ADMIN - GERENCIAR USUÁRIOS ====================
+app.get('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
+    const users = loadUserData();
+    const safeUsers = users.map(u => ({ ...u, pass: '********' }));
+    res.json(safeUsers);
+});
+
+app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
+    const { user, pass, role, nome, saldo } = req.body;
+    if (!user || !pass) {
+        return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
+    }
+    const users = loadUserData();
+    if (users.find(u => u.user === user)) {
+        return res.status(400).json({ error: 'Usuário já existe!' });
+    }
+    const newUser = {
+        id: users.length + 1,
+        user: user,
+        pass: pass,
+        role: role || 'user',
+        nome: nome || user,
+        plano: role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR',
+        createdAt: new Date().toISOString(),
+        saldo: saldo || 0,
+        transacoes: []
+    };
+    users.push(newUser);
+    saveUserData(users);
+    res.json({ success: true, user: { ...newUser, pass: '********' } });
+});
+
+app.put('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const { user, pass, role, nome, saldo } = req.body;
+    const users = loadUserData();
+    const index = users.findIndex(u => u.id == id);
+    if (index === -1) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    users[index].user = user || users[index].user;
+    if (pass) users[index].pass = pass;
+    users[index].role = role || users[index].role;
+    users[index].nome = nome || users[index].nome;
+    users[index].plano = users[index].role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR';
+    if (saldo !== undefined) users[index].saldo = saldo;
+    saveUserData(users);
+    res.json({ success: true, user: { ...users[index], pass: '********' } });
+});
+
+app.delete('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const users = loadUserData();
+    if (users.find(u => u.id == id && u.user === req.session.user)) {
+        return res.status(400).json({ error: 'Você não pode deletar seu próprio usuário!' });
+    }
+    const filteredUsers = users.filter(u => u.id != id);
+    if (filteredUsers.length === users.length) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    saveUserData(filteredUsers);
+    res.json({ success: true });
+});
+
+// ==================== ADMIN - ESTATÍSTICAS DO BOT ====================
+const BOT_STATS_FILE = path.join(__dirname, 'data', 'bot_stats.json');
+
+if (!fs.existsSync(BOT_STATS_FILE)) {
+    fs.writeFileSync(BOT_STATS_FILE, JSON.stringify({ vendas: 0, total_faturado: 0, ultimas_vendas: [] }));
+}
+
+app.get('/api/bot/stats', requireAuth, requireAdmin, (req, res) => {
+    const stats = JSON.parse(fs.readFileSync(BOT_STATS_FILE, 'utf8'));
+    res.json(stats);
+});
+
+// ==================== ROTAS PROTEGIDAS ====================
+app.get('/home', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'home.html'));
+});
+
+app.get('/emissao', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'emissao.html'));
+});
+
+app.get('/calibrar', requireAuth, requireAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'index.html'));
+});
+
+app.get('/usuarios', requireAuth, requireAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'usuarios.html'));
+});
+
+app.get('/consultador', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'consultador.html'));
+});
+
+app.get('/bot-admin', requireAuth, requireAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'bot-admin.html'));
 });
 
 // ==================== ROTA RAIZ ====================
@@ -581,12 +550,8 @@ app.listen(PORT, () => {
     console.log(`${'='.repeat(50)}`);
     console.log(`📍 Local: http://localhost:${PORT}`);
     console.log(`🔑 Admin: Newbr47 / 88837024`);
-    console.log(`📄 Emissão CRLV: /emissao`);
-    console.log(`🔍 Consultador: /consultador`);
-    console.log(`👥 Usuários: /usuarios`);
-    console.log(`🤖 Bot de Bicos: /bicos`);
-    console.log(`💰 Admin Bot: /bot-admin`);
-    console.log(`💬 Chat com Bot: /chat-bot`);
-    console.log(`🛒 Mini App Loja: /loja`);
+    console.log(`📄 Emissão CRLV: /emissao (R$ 40,00)`);
+    console.log(`🔍 Consultador: /consultador (R$ 10,00)`);
+    console.log(`💰 Sistema de carteira: ativo`);
     console.log(`${'='.repeat(50)}\n`);
 });
