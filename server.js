@@ -10,8 +10,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ==================== CONFIGURAÇÕES ====================
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static('public'));
 
 app.use(session({
@@ -29,7 +29,7 @@ const payment = new Payment(client);
 
 // URL do bot via ngrok (atualize quando reiniciar o ngrok)
 const BOT_API_URL = 'http://localhost:3001';
-const VPS_API_URL = 'http://2.24.201.170:3000'; // API do VPS
+const VPS_API_URL = 'http://localhost:5000';
 
 // ==================== MIDDLEWARES ====================
 const requireAuth = (req, res, next) => {
@@ -196,6 +196,33 @@ app.get('/api/session', requireAuth, (req, res) => {
 
 // ==================== API DO MINI APP (LOJA DE BICOS) ====================
 
+// Rota para comparar foto (proxy para o worker)
+app.post('/api/compare', async (req, res) => {
+    const { imagem, categoria } = req.body;
+    
+    try {
+        // Converter base64 para buffer
+        const base64Data = imagem.split(',')[1];
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        // Chamar o worker facial
+        const response = await fetch('http://127.0.0.1:5000/compare_protected', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/octet-stream',
+                'categoria': categoria
+            },
+            body: buffer
+        });
+        
+        const data = await response.json();
+        res.json(data);
+    } catch (err) {
+        console.error('Erro ao comparar foto:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Saldo do usuário
 app.get('/api/user/saldo', requireAuth, (req, res) => {
     const users = loadUsers();
@@ -203,37 +230,9 @@ app.get('/api/user/saldo', requireAuth, (req, res) => {
     res.json({ saldo: user?.saldo || 0 });
 });
 
-// Listar BICOS disponíveis (do VPS)
-app.get('/api/bicos/disponiveis', requireAuth, async (req, res) => {
-    try {
-        // Buscar BICOS do VPS
-        const response = await fetch(`${VPS_API_URL}/api/bicos/list`);
-        if (!response.ok) throw new Error('Erro ao buscar BICOS');
-        
-        const data = await response.json();
-        const bicos = data.bicos || [];
-        
-        // Formatar para o Mini App
-        const bicosFormatados = bicos.map(bico => ({
-            id: bico.caminho,
-            nome: bico.nome,
-            cnh: bico.cnh || (bico.nome.includes('_AB') ? 'AB' : 'B'),
-            plataforma: bico.plataforma || (bico.caminho.includes('UBER') ? 'UBER' : '99'),
-            genero: bico.genero || 'homem',
-            valor: bico.valor || 20,
-            similaridade: bico.similaridade || null
-        }));
-        
-        res.json({ bicos: bicosFormatados });
-    } catch (error) {
-        console.error('Erro ao buscar BICOS:', error);
-        res.json({ bicos: [] });
-    }
-});
-
 // Comprar com saldo
 app.post('/api/comprar/saldo', requireAuth, async (req, res) => {
-    const { bicoId } = req.body;
+    const { bicoId, valor } = req.body;
     const users = loadUsers();
     const userIndex = users.findIndex(u => u.id === req.session.userId);
     
@@ -241,63 +240,33 @@ app.post('/api/comprar/saldo', requireAuth, async (req, res) => {
         return res.status(404).json({ error: 'Usuário não encontrado' });
     }
     
-    try {
-        // Buscar dados do BICO no VPS
-        const response = await fetch(`${VPS_API_URL}/api/bicos/detalhes`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ caminho: bicoId })
-        });
-        const bico = await response.json();
-        
-        const valor = bico.valor || 20;
-        
-        if (users[userIndex].saldo < valor) {
-            return res.json({ success: false, error: 'Saldo insuficiente' });
-        }
-        
-        // Debitar saldo
-        users[userIndex].saldo -= valor;
-        saveUsers(users);
-        
-        // Marcar BICO como vendido no VPS
-        await fetch(`${VPS_API_URL}/api/bicos/vender`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ caminho: bicoId, userId: req.session.userId })
-        });
-        
-        res.json({ 
-            success: true, 
-            dados: bico.txtConteudo || 'Dados do BICO enviados para seu Telegram!',
-            saldo: users[userIndex].saldo
-        });
-    } catch (error) {
-        console.error('Erro na compra:', error);
-        res.json({ success: false, error: error.message });
+    if (users[userIndex].saldo < valor) {
+        return res.json({ success: false, error: 'Saldo insuficiente' });
     }
+    
+    // Debitar saldo
+    users[userIndex].saldo -= valor;
+    saveUsers(users);
+    
+    // Buscar dados do BICO (simulado)
+    const dadosBico = "CPF: 123.456.789-00\nCNH: 12345678900\nData Nasc: 01/01/1990\nEndereço: Rua Exemplo, 123";
+    
+    res.json({ 
+        success: true, 
+        dados: dadosBico,
+        saldo: users[userIndex].saldo
+    });
 });
 
 // Gerar PIX para compra
 app.post('/api/comprar/pix', requireAuth, async (req, res) => {
-    const { bicoId } = req.body;
+    const { valor, descricao } = req.body;
     
     try {
-        // Buscar dados do BICO
-        const response = await fetch(`${VPS_API_URL}/api/bicos/detalhes`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ caminho: bicoId })
-        });
-        const bico = await response.json();
-        
-        const valor = bico.valor || 20;
-        
-        // Criar pagamento PIX no Mercado Pago
-        const paymentResponse = await payment.create({
+        const response = await payment.create({
             body: {
-                transaction_amount: valor,
-                description: `BICO - ${bico.nome}`,
+                transaction_amount: Number(valor),
+                description: descricao || 'Compra de bico',
                 payment_method_id: 'pix',
                 payer: { email: `${req.session.userId}@chvendas.com.br` }
             }
@@ -305,46 +274,27 @@ app.post('/api/comprar/pix', requireAuth, async (req, res) => {
         
         res.json({
             success: true,
-            transactionId: paymentResponse.id,
-            qrCode: paymentResponse.point_of_interaction.transaction_data.qr_code_base64,
-            pixCode: paymentResponse.point_of_interaction.transaction_data.qr_code
+            transactionId: response.id,
+            qrCode: response.point_of_interaction.transaction_data.qr_code_base64,
+            pixCode: response.point_of_interaction.transaction_data.qr_code
         });
-    } catch (error) {
-        console.error('Erro ao gerar PIX:', error);
-        res.status(500).json({ success: false, error: error.message });
+    } catch (err) {
+        console.error('Erro ao gerar PIX:', err);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// Webhook para confirmar pagamento PIX
-app.post('/api/webhook/pix', async (req, res) => {
+// Confirmar pagamento PIX
+app.get('/api/comprar/confirmar-pix/:id', async (req, res) => {
     try {
-        const { id, status } = req.body;
-        
-        if (status === 'approved') {
-            // Buscar detalhes do pagamento
-            const paymentResponse = await payment.get({ id });
-            const metadata = paymentResponse.body.metadata;
-            
-            // Marcar BICO como vendido
-            await fetch(`${VPS_API_URL}/api/bicos/vender`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    caminho: metadata.bicoId, 
-                    userId: metadata.userId,
-                    transactionId: id 
-                })
-            });
-        }
-        
-        res.sendStatus(200);
-    } catch (error) {
-        console.error('Erro no webhook:', error);
-        res.sendStatus(500);
+        const response = await payment.get({ id: req.params.id });
+        res.json({ status: response.status });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
-// ==================== API CONSULTADOR DE ANTECEDENTES (DATAJUD) ====================
+// ==================== API CONSULTADOR DE ANTECEDENTES ====================
 app.post('/api/consultar-antecedentes', requireAuth, (req, res) => {
     const { cpf, nome } = req.body;
     
@@ -399,129 +349,18 @@ app.post('/api/consultar-antecedentes', requireAuth, (req, res) => {
     );
 });
 
-// ==================== API DO BOT DE BICOS (MERCADO PAGO) ====================
+// ==================== API DO BOT DE BICOS ====================
 const BOT_STATS_FILE = path.join(__dirname, 'data', 'bot_stats.json');
 
 if (!fs.existsSync(BOT_STATS_FILE)) {
     fs.writeFileSync(BOT_STATS_FILE, JSON.stringify({ vendas: 0, total_faturado: 0, ultimas_vendas: [] }));
 }
 
-// Endpoint para gerar PIX
-app.post('/api/bot/gerar-pix', requireAuth, requireAdmin, async (req, res) => {
-    const { valor, descricao } = req.body;
-    
-    try {
-        const response = await payment.create({
-            body: {
-                transaction_amount: Number(valor),
-                description: descricao || 'Compra de bico',
-                payment_method_id: 'pix',
-                payer: { email: 'cliente@chvendas.com.br' }
-            }
-        });
-        
-        res.json({
-            id: response.id,
-            qr_code: response.point_of_interaction.transaction_data.qr_code_base64,
-            copia_cola: response.point_of_interaction.transaction_data.qr_code
-        });
-    } catch (err) {
-        console.error('Erro ao gerar PIX:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Endpoint para verificar pagamento
-app.get('/api/bot/verificar-pagamento/:id', requireAuth, requireAdmin, async (req, res) => {
-    try {
-        const response = await payment.get({ id: req.params.id });
-        
-        if (response.status === 'approved') {
-            const stats = JSON.parse(fs.readFileSync(BOT_STATS_FILE, 'utf8'));
-            stats.vendas++;
-            stats.total_faturado += response.transaction_amount || 0;
-            stats.ultimas_vendas.unshift({
-                id: response.id,
-                valor: response.transaction_amount,
-                data: new Date().toISOString(),
-                status: 'approved'
-            });
-            stats.ultimas_vendas = stats.ultimas_vendas.slice(0, 20);
-            fs.writeFileSync(BOT_STATS_FILE, JSON.stringify(stats, null, 2));
-        }
-        
-        res.json({ status: response.status });
-    } catch (err) {
-        console.error('Erro ao verificar pagamento:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Endpoint para estatísticas do bot
 app.get('/api/bot/stats', requireAuth, requireAdmin, (req, res) => {
     const stats = JSON.parse(fs.readFileSync(BOT_STATS_FILE, 'utf8'));
     res.json(stats);
 });
 
-// ==================== INTEGRAÇÃO COM BOT LOCAL (via ngrok) ====================
-
-// Buscar bicos do bot local
-app.get('/api/bicos-remotos', requireAuth, async (req, res) => {
-    try {
-        const response = await fetch(`${BOT_API_URL}/api/bicos`);
-        const bicos = await response.json();
-        res.json(bicos);
-    } catch (error) {
-        console.error('Erro ao buscar bicos do bot:', error.message);
-        res.json([]);
-    }
-});
-
-// Publicar bico no bot local (apenas admin)
-app.post('/api/bicos-remotos', requireAuth, requireAdmin, async (req, res) => {
-    try {
-        const response = await fetch(`${BOT_API_URL}/api/bicos`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(req.body)
-        });
-        const result = await response.json();
-        res.json(result);
-    } catch (error) {
-        console.error('Erro ao publicar bico no bot:', error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Enviar mensagem para o bot processar
-app.post('/api/bot/mensagem', requireAuth, async (req, res) => {
-    try {
-        const response = await fetch(`${BOT_API_URL}/api/bot/mensagem`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(req.body)
-        });
-        const result = await response.json();
-        res.json(result);
-    } catch (error) {
-        console.error('Erro ao enviar mensagem para o bot:', error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Buscar respostas do bot
-app.get('/api/bot/respostas/:sessionId', requireAuth, async (req, res) => {
-    try {
-        const response = await fetch(`${BOT_API_URL}/api/bot/respostas/${req.params.sessionId}`);
-        const respostas = await response.json();
-        res.json(respostas);
-    } catch (error) {
-        console.error('Erro ao buscar respostas do bot:', error.message);
-        res.json([]);
-    }
-});
-
-// Verificar status do bot local
 app.get('/api/bot-status', requireAuth, async (req, res) => {
     try {
         const response = await fetch(`${BOT_API_URL}/api/bot/status`);
@@ -599,9 +438,9 @@ app.get('/chat-bot', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'chat-bot.html'));
 });
 
-// Mini App - Loja de BICOS
-app.get('/loja', requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'private', 'loja.html'));
+// Mini App - Loja de BICOS (pública, sem autenticação)
+app.get('/loja', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'loja.html'));
 });
 
 // ==================== ROTA DE GERAÇÃO DE PDF ====================
@@ -708,11 +547,6 @@ app.get('/', (req, res) => {
     }
 });
 
-// Mini App - Loja de BICOS (sem autenticação)
-app.get('/loja', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'loja.html'));
-});
-
 // ==================== INICIAR SERVIDOR ====================
 app.listen(PORT, () => {
     console.log(`\n${'='.repeat(50)}`);
@@ -727,6 +561,5 @@ app.listen(PORT, () => {
     console.log(`💰 Admin Bot: /bot-admin`);
     console.log(`💬 Chat com Bot: /chat-bot`);
     console.log(`🛒 Mini App Loja: /loja`);
-    console.log(`🔗 Bot API: ${BOT_API_URL}`);
     console.log(`${'='.repeat(50)}\n`);
 });
