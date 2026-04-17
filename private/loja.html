@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>CH Bicos - Loja</title>
+    <title>CH Bicos - Comprar Contas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -13,251 +13,408 @@
             font-family: 'Segoe UI', sans-serif;
             background: var(--tg-theme-bg-color, #0a0a0f);
             color: var(--tg-theme-text-color, #fafafa);
-            padding: 20px;
-        }
-        .bico-card {
-            background: var(--tg-theme-secondary-bg-color, rgba(24, 24, 27, 0.9));
-            border-radius: 16px;
             padding: 16px;
-            margin-bottom: 16px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border: 1px solid rgba(63, 63, 70, 0.4);
         }
-        .bico-card:active { transform: scale(0.98); }
-        .btn-comprar {
-            background: var(--tg-theme-button-color, #0088cc);
-            color: var(--tg-theme-button-text-color, white);
-            border: none;
-            padding: 10px 20px;
-            border-radius: 12px;
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 12px;
-        }
-        .filter-bar {
-            display: flex;
-            gap: 10px;
+        .step-card {
+            background: var(--tg-theme-secondary-bg-color, rgba(24, 24, 27, 0.9));
+            border-radius: 20px;
+            padding: 20px;
             margin-bottom: 20px;
-            flex-wrap: wrap;
+            border: 1px solid rgba(63, 63, 70, 0.4);
         }
         .filter-btn {
             background: rgba(24, 24, 27, 0.8);
             border: 1px solid #3f3f46;
-            padding: 8px 16px;
-            border-radius: 20px;
+            padding: 10px 16px;
+            border-radius: 30px;
             cursor: pointer;
             transition: all 0.3s;
+            margin: 4px;
         }
         .filter-btn.active {
             background: #0088cc;
             border-color: #0088cc;
         }
+        .photo-preview {
+            width: 100%;
+            max-width: 200px;
+            border-radius: 16px;
+            margin: 10px auto;
+            display: none;
+        }
+        .result-card {
+            background: var(--tg-theme-secondary-bg-color, #1e1e2e);
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .result-card:active { transform: scale(0.98); }
+        .btn-comprar {
+            background: #0088cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .saldo-display {
+            background: #00ff8822;
+            border: 1px solid #00ff88;
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
         .loading {
             text-align: center;
             padding: 40px;
         }
-        .telegram-header {
-            background: var(--tg-theme-secondary-bg-color, #1e1e2e);
-            padding: 12px;
-            border-radius: 12px;
+        .step-indicator {
+            display: flex;
+            gap: 10px;
             margin-bottom: 20px;
-            text-align: center;
+            justify-content: center;
         }
-        .saldo {
-            font-size: 18px;
+        .step {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #3f3f46;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-weight: bold;
-            color: #00ff88;
         }
+        .step.active { background: #0088cc; }
+        .step.completed { background: #00ff88; color: #000; }
     </style>
 </head>
 <body>
-    <div class="telegram-header">
-        <i class="fab fa-telegram text-2xl" style="color: #0088cc;"></i>
-        <h2>🏍️ CH Bicos</h2>
-        <p>Compre contas verificadas para aplicativos</p>
-        <div id="saldo-display" class="saldo">💰 Saldo: R$ --</div>
+    <div class="step-indicator">
+        <div class="step active" id="step1">1</div>
+        <div class="step" id="step2">2</div>
+        <div class="step" id="step3">3</div>
+        <div class="step" id="step4">4</div>
     </div>
 
-    <!-- Filtros -->
-    <div class="filter-bar">
-        <button class="filter-btn active" data-genero="homem">👨 Homem</button>
-        <button class="filter-btn" data-genero="mulher">👩 Mulher</button>
-        <button class="filter-btn" data-cnh="AB">🏍️ CNH AB (Moto)</button>
-        <button class="filter-btn" data-cnh="B">🚗 CNH B (Carro)</button>
-        <button class="filter-btn" data-plataforma="UBER">📱 Uber</button>
-        <button class="filter-btn" data-plataforma="99">📱 99</button>
-    </div>
-
-    <!-- Lista de BICOS -->
-    <div id="bicos-list">
-        <div class="loading">
-            <i class="fas fa-spinner fa-spin"></i> Carregando BICOS...
+    <!-- Step 1: Filtros -->
+    <div id="step-filtros" class="step-card">
+        <h2 class="text-xl font-bold mb-4">🔍 Buscar BICO</h2>
+        <p class="text-zinc-400 text-sm mb-4">Selecione os filtros e envie uma foto sua</p>
+        
+        <div class="mb-4">
+            <label class="block text-sm mb-2">👤 Gênero</label>
+            <div>
+                <button class="filter-btn" data-genero="homem">👨 Homem</button>
+                <button class="filter-btn" data-genero="mulher">👩 Mulher</button>
+            </div>
         </div>
+        
+        <div class="mb-4">
+            <label class="block text-sm mb-2">🚗 CNH</label>
+            <div>
+                <button class="filter-btn" data-cnh="AB">🏍️ AB (Moto)</button>
+                <button class="filter-btn" data-cnh="B">🚗 B (Carro)</button>
+            </div>
+        </div>
+        
+        <div class="mb-4">
+            <label class="block text-sm mb-2">📱 Plataforma</label>
+            <div>
+                <button class="filter-btn" data-plataforma="UBER">Uber</button>
+                <button class="filter-btn" data-plataforma="99">99</button>
+            </div>
+        </div>
+        
+        <div class="mb-4">
+            <label class="block text-sm mb-2">📸 Envie sua foto</label>
+            <input type="file" id="photoInput" accept="image/*" class="bg-zinc-800 rounded-lg p-2 w-full">
+            <img id="preview" class="photo-preview">
+        </div>
+        
+        <button id="btnBuscar" class="btn-comprar" style="background: #00ff88; color: #000;">🔍 Buscar BICOS</button>
+    </div>
+
+    <!-- Step 2: Resultados -->
+    <div id="step-resultados" class="step-card" style="display: none;">
+        <h2 class="text-xl font-bold mb-4">📋 Resultados</h2>
+        <div id="resultados-list">
+            <div class="loading">Carregando...</div>
+        </div>
+        <button id="btnVoltarFiltros" class="btn-comprar" style="background: #3f3f46;">← Voltar</button>
+    </div>
+
+    <!-- Step 3: Pagamento -->
+    <div id="step-pagamento" class="step-card" style="display: none;">
+        <h2 class="text-xl font-bold mb-4">💳 Pagamento</h2>
+        <div id="pagamento-info"></div>
+        <button id="btnConfirmarPagamento" class="btn-comprar">✅ Confirmar Pagamento</button>
+        <button id="btnCancelarPagamento" class="btn-comprar" style="background: #dc2626; margin-top: 10px;">❌ Cancelar</button>
+    </div>
+
+    <!-- Step 4: Dados do BICO -->
+    <div id="step-dados" class="step-card" style="display: none;">
+        <h2 class="text-xl font-bold mb-4">📄 Dados do BICO</h2>
+        <div id="dados-bico"></div>
+        <button id="btnFechar" class="btn-comprar" style="background: #00ff88; color: #000;">✅ Fechar</button>
     </div>
 
     <script>
         let tg = null;
-        let saldoAtual = 0;
-        let bicos = [];
-        let filtros = {
-            genero: 'homem',
-            cnh: null,
-            plataforma: null
-        };
-
+        let fotoSelecionada = null;
+        let filtros = { genero: 'homem', cnh: 'AB', plataforma: 'UBER' };
+        let resultados = [];
+        let bicoSelecionado = null;
+        let userId = null;
+        
         // Inicializar Telegram WebApp
         function initTelegram() {
             if (window.Telegram && window.Telegram.WebApp) {
                 tg = window.Telegram.WebApp;
                 tg.ready();
                 tg.expand();
-                
-                // Aplicar tema
                 document.body.style.background = tg.themeParams.bg_color || '#0a0a0f';
+                
+                // Obter ID do usuário do Telegram
+                const user = tg.initDataUnsafe?.user;
+                if (user) {
+                    userId = user.id;
+                    console.log('Usuário Telegram:', userId);
+                }
+            } else {
+                // Fallback: gerar ID temporário
+                userId = 'web_' + Date.now();
             }
         }
-
-        // Carregar saldo do usuário
-        async function carregarSaldo() {
-            try {
-                const response = await fetch('/api/user/saldo');
-                const data = await response.json();
-                saldoAtual = data.saldo || 0;
-                document.getElementById('saldo-display').innerHTML = `💰 Saldo: R$ ${saldoAtual.toFixed(2)}`;
-            } catch (err) {
-                console.error('Erro ao carregar saldo:', err);
+        
+        // Atualizar UI dos filtros
+        document.querySelectorAll('[data-genero]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                filtros.genero = btn.dataset.genero;
+                document.querySelectorAll('[data-genero]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        
+        document.querySelectorAll('[data-cnh]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                filtros.cnh = btn.dataset.cnh;
+                document.querySelectorAll('[data-cnh]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        
+        document.querySelectorAll('[data-plataforma]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                filtros.plataforma = btn.dataset.plataforma;
+                document.querySelectorAll('[data-plataforma]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        
+        // Preview da foto
+        document.getElementById('photoInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    fotoSelecionada = event.target.result;
+                    document.getElementById('preview').src = fotoSelecionada;
+                    document.getElementById('preview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
             }
-        }
-
-        // Carregar BICOS disponíveis
-        async function carregarBicos() {
-            try {
-                const response = await fetch('/api/bicos/disponiveis');
-                const data = await response.json();
-                bicos = data.bicos || [];
-                aplicarFiltros();
-            } catch (err) {
-                console.error('Erro ao carregar BICOS:', err);
-                document.getElementById('bicos-list').innerHTML = '<div class="loading">❌ Erro ao carregar BICOS</div>';
-            }
-        }
-
-        // Aplicar filtros
-        function aplicarFiltros() {
-            let filtrados = [...bicos];
-            
-            if (filtros.genero) {
-                filtrados = filtrados.filter(b => b.genero === filtros.genero);
-            }
-            if (filtros.cnh) {
-                filtrados = filtrados.filter(b => b.cnh === filtros.cnh);
-            }
-            if (filtros.plataforma) {
-                filtrados = filtrados.filter(b => b.plataforma === filtros.plataforma);
-            }
-            
-            renderizarBicos(filtrados);
-        }
-
-        // Renderizar lista de BICOS
-        function renderizarBicos(bicosList) {
-            const container = document.getElementById('bicos-list');
-            
-            if (bicosList.length === 0) {
-                container.innerHTML = '<div class="loading">📦 Nenhum BICO encontrado com esses filtros</div>';
+        });
+        
+        // Buscar BICOS
+        async function buscarBicos() {
+            if (!fotoSelecionada) {
+                alert('📸 Por favor, envie uma foto primeiro!');
                 return;
             }
             
-            container.innerHTML = bicosList.map(bico => `
-                <div class="bico-card" onclick="comprarBico('${bico.id}')">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <h3 style="font-weight: bold;">${bico.nome}</h3>
-                            <p style="font-size: 12px; opacity: 0.7;">${bico.plataforma} - ${bico.cnh}</p>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 20px; font-weight: bold; color: #00ff88;">R$ ${bico.valor},00</div>
-                            <div style="font-size: 11px; opacity: 0.6;">${bico.similaridade || 'Novo'}</div>
+            document.getElementById('step-filtros').style.display = 'none';
+            document.getElementById('step-resultados').style.display = 'block';
+            document.getElementById('step2').classList.add('active');
+            
+            const resultadosDiv = document.getElementById('resultados-list');
+            resultadosDiv.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Comparando rostos...</div>';
+            
+            try {
+                // Converter foto para base64 e enviar para o VPS
+                const response = await fetch('https://2.24.201.170:5000/compare_protected', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'categoria': `${filtros.genero}_${filtros.cnh}_${filtros.plataforma}`
+                    },
+                    body: JSON.stringify({ imagem: fotoSelecionada })
+                });
+                
+                const data = await response.json();
+                resultados = data.resultados || [];
+                
+                if (resultados.length === 0) {
+                    resultadosDiv.innerHTML = '<div class="loading">😕 Nenhum BICO encontrado. Tente outra foto ou ajuste os filtros.</div>';
+                } else {
+                    renderizarResultados(resultados);
+                }
+            } catch (err) {
+                console.error('Erro:', err);
+                resultadosDiv.innerHTML = '<div class="loading">❌ Erro ao buscar BICOS. Tente novamente.</div>';
+            }
+        }
+        
+        function renderizarResultados(lista) {
+            const container = document.getElementById('resultados-list');
+            container.innerHTML = lista.map((bico, idx) => `
+                <div class="result-card" onclick="selecionarBico(${idx})">
+                    <div style="display: flex; gap: 12px;">
+                        <img src="https://2.24.201.170:5000/imagem/${bico.caminho}" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold;">${bico.caminho.split('/').pop().replace(/\.jpg$/, '').replace(/_/g, ' ')}</div>
+                            <div style="font-size: 12px; opacity: 0.7;">Similaridade: ${bico.similaridade}%</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #00ff88;">R$ ${filtros.genero === 'mulher' ? '40,00' : '20,00'}</div>
                         </div>
                     </div>
-                    <button class="btn-comprar">💰 Comprar Agora</button>
                 </div>
             `).join('');
         }
-
-        // Comprar BICO
-        async function comprarBico(bicoId) {
-            const bico = bicos.find(b => b.id === bicoId);
-            if (!bico) return;
+        
+        function selecionarBico(index) {
+            bicoSelecionado = resultados[index];
+            document.getElementById('step-resultados').style.display = 'none';
+            document.getElementById('step-pagamento').style.display = 'block';
+            document.getElementById('step3').classList.add('active');
             
-            if (saldoAtual >= bico.valor) {
-                // Confirmar compra com saldo
-                if (confirm(`Comprar ${bico.nome} por R$ ${bico.valor},00?`)) {
-                    const response = await fetch('/api/comprar/saldo', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ bicoId: bico.id })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        alert('✅ Compra realizada com sucesso!\n\nDados do BICO:\n' + result.dados);
-                        carregarSaldo();
-                        carregarBicos();
-                        if (tg) tg.close();
-                    } else {
-                        alert('❌ Erro: ' + result.error);
-                    }
-                }
+            const valor = filtros.genero === 'mulher' ? 40 : 20;
+            document.getElementById('pagamento-info').innerHTML = `
+                <div style="text-align: center;">
+                    <img src="https://2.24.201.170:5000/imagem/${bicoSelecionado.caminho}" style="width: 150px; border-radius: 16px; margin-bottom: 16px;">
+                    <p><strong>${bicoSelecionado.caminho.split('/').pop().replace(/\.jpg$/, '').replace(/_/g, ' ')}</strong></p>
+                    <p>Similaridade: ${bicoSelecionado.similaridade}%</p>
+                    <p style="font-size: 24px; font-weight: bold; color: #00ff88; margin: 16px 0;">R$ ${valor},00</p>
+                    <button id="btnPagarComSaldo" class="btn-comprar" style="background: #00ff88; color: #000; margin-bottom: 10px;">💰 Pagar com Saldo</button>
+                    <button id="btnGerarPix" class="btn-comprar">💳 Gerar PIX</button>
+                </div>
+            `;
+            
+            document.getElementById('btnPagarComSaldo')?.addEventListener('click', () => pagarComSaldo());
+            document.getElementById('btnGerarPix')?.addEventListener('click', () => gerarPix());
+        }
+        
+        async function pagarComSaldo() {
+            const valor = filtros.genero === 'mulher' ? 40 : 20;
+            
+            const response = await fetch('/api/comprar/saldo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    bicoId: bicoSelecionado.caminho,
+                    userId: userId,
+                    valor: valor
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                document.getElementById('step-pagamento').style.display = 'none';
+                document.getElementById('step-dados').style.display = 'block';
+                document.getElementById('step4').classList.add('active');
+                document.getElementById('dados-bico').innerHTML = `
+                    <div style="white-space: pre-wrap; background: #1e1e2e; padding: 16px; border-radius: 12px;">
+                        ${result.dados}
+                    </div>
+                `;
             } else {
-                // Gerar PIX
-                const response = await fetch('/api/comprar/pix', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ bicoId: bico.id })
-                });
-                const result = await response.json();
-                if (result.success && result.qrCode) {
-                    alert('💳 PIX gerado!\n\nCódigo: ' + result.pixCode);
-                    if (tg) tg.close();
-                } else {
-                    alert('❌ Erro ao gerar PIX: ' + result.error);
-                }
+                alert('❌ Saldo insuficiente! ' + (result.error || ''));
             }
         }
-
-        // Configurar filtros
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const genero = btn.dataset.genero;
-                const cnh = btn.dataset.cnh;
-                const plataforma = btn.dataset.plataforma;
-                
-                if (genero) {
-                    filtros.genero = filtros.genero === genero ? null : genero;
-                }
-                if (cnh) {
-                    filtros.cnh = filtros.cnh === cnh ? null : cnh;
-                }
-                if (plataforma) {
-                    filtros.plataforma = filtros.plataforma === plataforma ? null : plataforma;
-                }
-                
-                // Atualizar estilo dos botões
-                document.querySelectorAll('.filter-btn').forEach(b => {
-                    b.classList.remove('active');
-                });
-                btn.classList.add('active');
-                
-                aplicarFiltros();
+        
+        async function gerarPix() {
+            const valor = filtros.genero === 'mulher' ? 40 : 20;
+            
+            const response = await fetch('/api/comprar/pix', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    bicoId: bicoSelecionado.caminho,
+                    valor: valor,
+                    descricao: `BICO - ${bicoSelecionado.caminho}`
+                })
             });
+            
+            const result = await response.json();
+            
+            if (result.success && result.qrCode) {
+                document.getElementById('pagamento-info').innerHTML = `
+                    <div style="text-align: center;">
+                        <p>📱 Escaneie o QR Code abaixo:</p>
+                        <img src="data:image/png;base64,${result.qrCode}" style="width: 200px; margin: 16px auto;">
+                        <p style="font-size: 12px;">Código PIX:</p>
+                        <code style="background: #1e1e2e; padding: 8px; border-radius: 8px; display: block; word-break: break-all;">${result.pixCode}</code>
+                        <button id="btnConfirmarPix" class="btn-comprar" style="margin-top: 16px;">✅ Já paguei</button>
+                        <button id="btnCancelarPix" class="btn-comprar" style="background: #dc2626; margin-top: 10px;">❌ Cancelar</button>
+                    </div>
+                `;
+                
+                document.getElementById('btnConfirmarPix')?.addEventListener('click', () => confirmarPix(result.transactionId));
+                document.getElementById('btnCancelarPix')?.addEventListener('click', () => {
+                    document.getElementById('step-pagamento').style.display = 'none';
+                    document.getElementById('step-resultados').style.display = 'block';
+                });
+            } else {
+                alert('❌ Erro ao gerar PIX: ' + (result.error || ''));
+            }
+        }
+        
+        async function confirmarPix(transactionId) {
+            const response = await fetch(`/api/comprar/confirmar-pix/${transactionId}`);
+            const result = await response.json();
+            
+            if (result.status === 'approved') {
+                // Buscar dados do BICO
+                const dadosResponse = await fetch(`/api/bicos/dados/${encodeURIComponent(bicoSelecionado.caminho)}`);
+                const dados = await dadosResponse.json();
+                
+                document.getElementById('step-pagamento').style.display = 'none';
+                document.getElementById('step-dados').style.display = 'block';
+                document.getElementById('step4').classList.add('active');
+                document.getElementById('dados-bico').innerHTML = `
+                    <div style="white-space: pre-wrap; background: #1e1e2e; padding: 16px; border-radius: 12px;">
+                        ${dados.txt || 'Dados do BICO enviados para seu Telegram!'}
+                    </div>
+                `;
+            } else {
+                alert('⚠️ Pagamento ainda não confirmado. Aguarde alguns segundos e tente novamente.');
+            }
+        }
+        
+        document.getElementById('btnBuscar').addEventListener('click', buscarBicos);
+        document.getElementById('btnVoltarFiltros').addEventListener('click', () => {
+            document.getElementById('step-resultados').style.display = 'none';
+            document.getElementById('step-filtros').style.display = 'block';
         });
-
-        // Inicializar
+        document.getElementById('btnFechar').addEventListener('click', () => {
+            if (tg) tg.close();
+            else window.close();
+        });
+        document.getElementById('btnCancelarPagamento').addEventListener('click', () => {
+            document.getElementById('step-pagamento').style.display = 'none';
+            document.getElementById('step-resultados').style.display = 'block';
+        });
+        
+        // Ativar filtros padrão
+        document.querySelector('[data-genero="homem"]').classList.add('active');
+        document.querySelector('[data-cnh="AB"]').classList.add('active');
+        document.querySelector('[data-plataforma="UBER"]').classList.add('active');
+        
         initTelegram();
-        carregarSaldo();
-        carregarBicos();
     </script>
 </body>
 </html>
