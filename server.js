@@ -29,6 +29,7 @@ const payment = new Payment(client);
 
 // URL do bot via ngrok (atualize quando reiniciar o ngrok)
 const BOT_API_URL = 'http://localhost:3001';
+const VPS_API_URL = 'http://2.24.201.170:3000'; // API do VPS
 
 // ==================== MIDDLEWARES ====================
 const requireAuth = (req, res, next) => {
@@ -66,8 +67,8 @@ if (!fs.existsSync(path.join(__dirname, 'data'))) {
 }
 
 const defaultUsers = [
-    { id: 1, user: 'Newbr47', pass: '88837024', role: 'admin', nome: 'Carlos Henrique', plano: 'MASTER PREMIUM', createdAt: new Date().toISOString() },
-    { id: 2, user: 'chcontas', pass: 'master2026', role: 'user', nome: 'CH Contas', plano: 'OPERADOR', createdAt: new Date().toISOString() }
+    { id: 1, user: 'Newbr47', pass: '88837024', role: 'admin', nome: 'Carlos Henrique', plano: 'MASTER PREMIUM', createdAt: new Date().toISOString(), saldo: 100 },
+    { id: 2, user: 'chcontas', pass: 'master2026', role: 'user', nome: 'CH Contas', plano: 'OPERADOR', createdAt: new Date().toISOString(), saldo: 50 }
 ];
 
 function loadUsers() {
@@ -90,7 +91,7 @@ app.get('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
 });
 
 app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
-    const { user, pass, role, nome } = req.body;
+    const { user, pass, role, nome, saldo } = req.body;
     if (!user || !pass) {
         return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
     }
@@ -105,7 +106,8 @@ app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
         role: role || 'user',
         nome: nome || user,
         plano: role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        saldo: saldo || 0
     };
     users.push(newUser);
     saveUsers(users);
@@ -114,7 +116,7 @@ app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
 
 app.put('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
     const { id } = req.params;
-    const { user, pass, role, nome } = req.body;
+    const { user, pass, role, nome, saldo } = req.body;
     const users = loadUsers();
     const index = users.findIndex(u => u.id == id);
     if (index === -1) {
@@ -125,6 +127,7 @@ app.put('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
     users[index].role = role || users[index].role;
     users[index].nome = nome || users[index].nome;
     users[index].plano = users[index].role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR';
+    if (saldo !== undefined) users[index].saldo = saldo;
     saveUsers(users);
     res.json({ success: true, user: { ...users[index], pass: '********' } });
 });
@@ -178,14 +181,167 @@ app.get('/logout', (req, res) => {
 
 // ==================== API DE SESSÃO ====================
 app.get('/api/session', requireAuth, (req, res) => {
+    const users = loadUsers();
+    const user = users.find(u => u.user === req.session.user);
     res.json({
         user: req.session.user,
         nome: req.session.nome,
         role: req.session.role,
         plano: req.session.plano,
         userId: req.session.userId,
+        saldo: user?.saldo || 0,
         expira: "08/05/2026 01:48:55"
     });
+});
+
+// ==================== API DO MINI APP (LOJA DE BICOS) ====================
+
+// Saldo do usuário
+app.get('/api/user/saldo', requireAuth, (req, res) => {
+    const users = loadUsers();
+    const user = users.find(u => u.id === req.session.userId);
+    res.json({ saldo: user?.saldo || 0 });
+});
+
+// Listar BICOS disponíveis (do VPS)
+app.get('/api/bicos/disponiveis', requireAuth, async (req, res) => {
+    try {
+        // Buscar BICOS do VPS
+        const response = await fetch(`${VPS_API_URL}/api/bicos/list`);
+        if (!response.ok) throw new Error('Erro ao buscar BICOS');
+        
+        const data = await response.json();
+        const bicos = data.bicos || [];
+        
+        // Formatar para o Mini App
+        const bicosFormatados = bicos.map(bico => ({
+            id: bico.caminho,
+            nome: bico.nome,
+            cnh: bico.cnh || (bico.nome.includes('_AB') ? 'AB' : 'B'),
+            plataforma: bico.plataforma || (bico.caminho.includes('UBER') ? 'UBER' : '99'),
+            genero: bico.genero || 'homem',
+            valor: bico.valor || 20,
+            similaridade: bico.similaridade || null
+        }));
+        
+        res.json({ bicos: bicosFormatados });
+    } catch (error) {
+        console.error('Erro ao buscar BICOS:', error);
+        res.json({ bicos: [] });
+    }
+});
+
+// Comprar com saldo
+app.post('/api/comprar/saldo', requireAuth, async (req, res) => {
+    const { bicoId } = req.body;
+    const users = loadUsers();
+    const userIndex = users.findIndex(u => u.id === req.session.userId);
+    
+    if (userIndex === -1) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    
+    try {
+        // Buscar dados do BICO no VPS
+        const response = await fetch(`${VPS_API_URL}/api/bicos/detalhes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ caminho: bicoId })
+        });
+        const bico = await response.json();
+        
+        const valor = bico.valor || 20;
+        
+        if (users[userIndex].saldo < valor) {
+            return res.json({ success: false, error: 'Saldo insuficiente' });
+        }
+        
+        // Debitar saldo
+        users[userIndex].saldo -= valor;
+        saveUsers(users);
+        
+        // Marcar BICO como vendido no VPS
+        await fetch(`${VPS_API_URL}/api/bicos/vender`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ caminho: bicoId, userId: req.session.userId })
+        });
+        
+        res.json({ 
+            success: true, 
+            dados: bico.txtConteudo || 'Dados do BICO enviados para seu Telegram!',
+            saldo: users[userIndex].saldo
+        });
+    } catch (error) {
+        console.error('Erro na compra:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Gerar PIX para compra
+app.post('/api/comprar/pix', requireAuth, async (req, res) => {
+    const { bicoId } = req.body;
+    
+    try {
+        // Buscar dados do BICO
+        const response = await fetch(`${VPS_API_URL}/api/bicos/detalhes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ caminho: bicoId })
+        });
+        const bico = await response.json();
+        
+        const valor = bico.valor || 20;
+        
+        // Criar pagamento PIX no Mercado Pago
+        const paymentResponse = await payment.create({
+            body: {
+                transaction_amount: valor,
+                description: `BICO - ${bico.nome}`,
+                payment_method_id: 'pix',
+                payer: { email: `${req.session.userId}@chvendas.com.br` }
+            }
+        });
+        
+        res.json({
+            success: true,
+            transactionId: paymentResponse.id,
+            qrCode: paymentResponse.point_of_interaction.transaction_data.qr_code_base64,
+            pixCode: paymentResponse.point_of_interaction.transaction_data.qr_code
+        });
+    } catch (error) {
+        console.error('Erro ao gerar PIX:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Webhook para confirmar pagamento PIX
+app.post('/api/webhook/pix', async (req, res) => {
+    try {
+        const { id, status } = req.body;
+        
+        if (status === 'approved') {
+            // Buscar detalhes do pagamento
+            const paymentResponse = await payment.get({ id });
+            const metadata = paymentResponse.body.metadata;
+            
+            // Marcar BICO como vendido
+            await fetch(`${VPS_API_URL}/api/bicos/vender`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    caminho: metadata.bicoId, 
+                    userId: metadata.userId,
+                    transactionId: id 
+                })
+            });
+        }
+        
+        res.sendStatus(200);
+    } catch (error) {
+        console.error('Erro no webhook:', error);
+        res.sendStatus(500);
+    }
 });
 
 // ==================== API CONSULTADOR DE ANTECEDENTES (DATAJUD) ====================
@@ -443,6 +599,11 @@ app.get('/chat-bot', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'chat-bot.html'));
 });
 
+// Mini App - Loja de BICOS
+app.get('/loja', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'loja.html'));
+});
+
 // ==================== ROTA DE GERAÇÃO DE PDF ====================
 function formatarCpfCnpj(valor) {
     const limpo = valor.replace(/\D/g, '');
@@ -560,6 +721,7 @@ app.listen(PORT, () => {
     console.log(`🤖 Bot de Bicos: /bicos`);
     console.log(`💰 Admin Bot: /bot-admin`);
     console.log(`💬 Chat com Bot: /chat-bot`);
+    console.log(`🛒 Mini App Loja: /loja`);
     console.log(`🔗 Bot API: ${BOT_API_URL}`);
     console.log(`${'='.repeat(50)}\n`);
 });
