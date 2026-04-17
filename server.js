@@ -543,6 +543,35 @@ app.get('/', (req, res) => {
     }
 });
 
+// Configuração de e-mail
+const nodemailer = require('nodemailer');
+
+const emailTransporter = nodemailer.createTransport({
+    host: 'smtp.hostinger.com',
+    port: 465,
+    secure: true,
+    auth: {
+        user: 'carloshenrique@chvendas.com.br',
+        pass: 'Ni123@456'
+    }
+});
+
+async function enviarEmail(destinatario, assunto, mensagemHtml) {
+    try {
+        await emailTransporter.sendMail({
+            from: '"CH Vendas" <carloshenrique@chvendas.com.br>',
+            to: destinatario,
+            subject: assunto,
+            html: mensagemHtml
+        });
+        console.log(`✅ E-mail enviado para ${destinatario}`);
+        return true;
+    } catch (err) {
+        console.error('❌ Erro ao enviar e-mail:', err.message);
+        return false;
+    }
+}
+
 // ==================== INICIAR SERVIDOR ====================
 app.listen(PORT, () => {
     console.log(`\n${'='.repeat(50)}`);
