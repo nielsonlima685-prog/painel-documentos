@@ -538,6 +538,33 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
     }
 });
 
+// Adicionar no server.js
+app.post('/api/recarregar', async (req, res) => {
+    const { valor } = req.body;
+    const userId = req.session.userId;
+    
+    // Gerar PIX para recarga
+    const pix = await gerarPix(valor, userId);
+    
+    res.json({
+        qrCode: pix.qr_code,
+        pixCode: pix.copia_cola,
+        transactionId: pix.id
+    });
+});
+
+app.post('/api/confirmar-recarga', async (req, res) => {
+    const { transactionId, valor } = req.body;
+    const userId = req.session.userId;
+    
+    // Verificar pagamento e adicionar saldo
+    const userData = loadUserData();
+    userData[userId].saldo = (userData[userId].saldo || 0) + valor;
+    saveUserData(userData);
+    
+    res.json({ success: true, saldo: userData[userId].saldo });
+});
+
 // ==================== ROTA RAIZ ====================
 app.get('/', (req, res) => {
     if (req.session.user) {
