@@ -572,6 +572,55 @@ async function enviarEmail(destinatario, assunto, mensagemHtml) {
     }
 }
 
+// Adicionar no server.js
+app.post('/api/consultar-escavador', requireAuth, async (req, res) => {
+    const { cpf, cnpj } = req.body;
+    const userId = req.session.userId;
+    
+    // Custo real da API: ~R$ 5,00 (estimado)
+    // Margem 100%: preço final R$ 10,00
+    const valorServico = 10;
+    
+    const documento = cpf || cnpj;
+    const tipo = cpf ? 'cpf' : 'cnpj';
+    
+    if (!documento) {
+        return res.status(400).json({ error: 'CPF ou CNPJ é obrigatório' });
+    }
+    
+    try {
+        // Debitar saldo
+        await debitarSaldo(userId, valorServico, `Consulta Escavador (${tipo.toUpperCase()})`);
+        
+        // Chamar Python
+        const { exec } = require('child_process');
+        exec(`python3 /var/www/chvendas/escavador_api.py ${tipo} "${documento}"`, 
+            { timeout: 30000 },
+            (error, stdout, stderr) => {
+                if (error) {
+                    console.error('Erro no script:', stderr);
+                    return res.status(500).json({ error: 'Erro na consulta. Tente novamente.' });
+                }
+                
+                try {
+                    const resultado = JSON.parse(stdout);
+                    res.json(resultado);
+                } catch (e) {
+                    console.error('Erro ao parsear:', stdout);
+                    res.json({ status: 'erro', mensagem: 'Erro ao processar resultado' });
+                }
+            });
+        
+    } catch (err) {
+        if (err.message.includes('Saldo insuficiente')) {
+            res.status(400).json({ error: err.message });
+        } else {
+            console.error('Erro:', err);
+            res.status(500).json({ error: err.message });
+        }
+    }
+});
+
 // ==================== INICIAR SERVIDOR ====================
 app.listen(PORT, () => {
     console.log(`\n${'='.repeat(50)}`);
