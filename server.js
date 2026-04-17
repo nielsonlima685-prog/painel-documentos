@@ -1,3 +1,4 @@
+cat > /var/www/chvendas/server.js << 'EOF'
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
@@ -45,17 +46,6 @@ const defaultUsers = [
         createdAt: new Date().toISOString(), 
         saldo: 100,
         transacoes: []
-    },
-    { 
-        id: 2, 
-        user: 'chcontas', 
-        pass: 'master2026', 
-        role: 'user', 
-        nome: 'CH Contas', 
-        plano: 'OPERADOR', 
-        createdAt: new Date().toISOString(), 
-        saldo: 50,
-        transacoes: []
     }
 ];
 
@@ -88,7 +78,6 @@ async function debitarSaldo(userId, valor, servico) {
     
     users[userIndex].saldo = saldoAtual - valor;
     
-    // Registrar transação
     if (!users[userIndex].transacoes) users[userIndex].transacoes = [];
     users[userIndex].transacoes.unshift({
         tipo: 'saida',
@@ -112,7 +101,6 @@ async function creditarSaldo(userId, valor, descricao) {
     
     users[userIndex].saldo = (users[userIndex].saldo || 0) + valor;
     
-    // Registrar transação
     if (!users[userIndex].transacoes) users[userIndex].transacoes = [];
     users[userIndex].transacoes.unshift({
         tipo: 'entrada',
@@ -281,10 +269,9 @@ app.post('/api/consultar-antecedentes', requireAuth, async (req, res) => {
     }
     
     try {
-        // Debitar saldo
         await debitarSaldo(userId, valorServico, 'Consulta de antecedentes');
         
-        // Simular consulta (aqui você integra com a API real)
+        // Simular consulta
         const resultado = {
             status: 'aprovado',
             mensagem: '✅ Nada consta na base de dados. Motorista aprovado!',
@@ -293,7 +280,11 @@ app.post('/api/consultar-antecedentes', requireAuth, async (req, res) => {
         
         res.json(resultado);
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        if (err.message.includes('Saldo insuficiente')) {
+            res.status(400).json({ error: err.message });
+        } else {
+            res.status(500).json({ error: err.message });
+        }
     }
 });
 
@@ -314,7 +305,6 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         const userId = req.session.userId;
         const valorServico = 40;
         
-        // Debitar saldo
         await debitarSaldo(userId, valorServico, 'Emissão CRLV');
         
         const tipo = dados.tipo_template || dados.tipo_veiculo || 'carro';
@@ -337,7 +327,6 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         const firstPage = pdfDoc.getPages()[0];
         const coords = JSON.parse(fs.readFileSync(coordsPath, 'utf8'));
 
-        // Limpar áreas
         Object.keys(coords).forEach(key => {
             const pos = coords[key];
             if (pos.x !== undefined && pos.y !== undefined) {
@@ -355,7 +344,6 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
             }
         });
 
-        // Preencher campos
         Object.keys(coords).forEach(key => {
             const pos = coords[key];
             let valor = dados[key] || "";
@@ -400,36 +388,6 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         } else {
             res.status(500).send("Erro interno ao processar o documento PDF.");
         }
-    }
-});
-
-// ==================== API DE COORDENADAS ====================
-app.get('/api/coords', requireAuth, requireAdmin, (req, res) => {
-    const tipo = req.query.tipo || 'moto';
-    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
-    const filePath = path.join(__dirname, 'assets', fileName);
-    
-    if (fs.existsSync(filePath)) {
-        res.json(JSON.parse(fs.readFileSync(filePath, 'utf8')));
-    } else {
-        res.json({});
-    }
-});
-
-app.post('/api/save-coords', requireAuth, requireAdmin, (req, res) => {
-    const tipo = req.query.tipo || 'moto';
-    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
-    const assetsPath = path.join(__dirname, 'assets');
-    
-    if (!fs.existsSync(assetsPath)) fs.mkdirSync(assetsPath);
-    
-    const filePath = path.join(assetsPath, fileName);
-    
-    try {
-        fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
-        res.sendStatus(200);
-    } catch (e) {
-        res.status(500).send("Erro ao salvar arquivo de coordenadas.");
     }
 });
 
@@ -509,6 +467,36 @@ app.get('/api/bot/stats', requireAuth, requireAdmin, (req, res) => {
     res.json(stats);
 });
 
+// ==================== API DE COORDENADAS ====================
+app.get('/api/coords', requireAuth, requireAdmin, (req, res) => {
+    const tipo = req.query.tipo || 'moto';
+    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
+    const filePath = path.join(__dirname, 'assets', fileName);
+    
+    if (fs.existsSync(filePath)) {
+        res.json(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+    } else {
+        res.json({});
+    }
+});
+
+app.post('/api/save-coords', requireAuth, requireAdmin, (req, res) => {
+    const tipo = req.query.tipo || 'moto';
+    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
+    const assetsPath = path.join(__dirname, 'assets');
+    
+    if (!fs.existsSync(assetsPath)) fs.mkdirSync(assetsPath);
+    
+    const filePath = path.join(assetsPath, fileName);
+    
+    try {
+        fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
+        res.sendStatus(200);
+    } catch (e) {
+        res.status(500).send("Erro ao salvar arquivo de coordenadas.");
+    }
+});
+
 // ==================== ROTAS PROTEGIDAS ====================
 app.get('/home', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'home.html'));
@@ -534,6 +522,11 @@ app.get('/bot-admin', requireAuth, requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'bot-admin.html'));
 });
 
+// Loja pública
+app.get('/loja', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'loja.html'));
+});
+
 // ==================== ROTA RAIZ ====================
 app.get('/', (req, res) => {
     if (req.session.user) {
@@ -543,86 +536,8 @@ app.get('/', (req, res) => {
     }
 });
 
-// Configuração de e-mail
-const nodemailer = require('nodemailer');
-
-const emailTransporter = nodemailer.createTransport({
-    host: 'smtp.hostinger.com',
-    port: 465,
-    secure: true,
-    auth: {
-        user: 'carloshenrique@chvendas.com.br',
-        pass: 'Ni123@456'
-    }
-});
-
-async function enviarEmail(destinatario, assunto, mensagemHtml) {
-    try {
-        await emailTransporter.sendMail({
-            from: '"CH Vendas" <carloshenrique@chvendas.com.br>',
-            to: destinatario,
-            subject: assunto,
-            html: mensagemHtml
-        });
-        console.log(`✅ E-mail enviado para ${destinatario}`);
-        return true;
-    } catch (err) {
-        console.error('❌ Erro ao enviar e-mail:', err.message);
-        return false;
-    }
-}
-
-// Adicionar no server.js
-app.post('/api/consultar-escavador', requireAuth, async (req, res) => {
-    const { cpf, cnpj } = req.body;
-    const userId = req.session.userId;
-    
-    // Custo real da API: ~R$ 5,00 (estimado)
-    // Margem 100%: preço final R$ 10,00
-    const valorServico = 10;
-    
-    const documento = cpf || cnpj;
-    const tipo = cpf ? 'cpf' : 'cnpj';
-    
-    if (!documento) {
-        return res.status(400).json({ error: 'CPF ou CNPJ é obrigatório' });
-    }
-    
-    try {
-        // Debitar saldo
-        await debitarSaldo(userId, valorServico, `Consulta Escavador (${tipo.toUpperCase()})`);
-        
-        // Chamar Python
-        const { exec } = require('child_process');
-        exec(`python3 /var/www/chvendas/escavador_api.py ${tipo} "${documento}"`, 
-            { timeout: 30000 },
-            (error, stdout, stderr) => {
-                if (error) {
-                    console.error('Erro no script:', stderr);
-                    return res.status(500).json({ error: 'Erro na consulta. Tente novamente.' });
-                }
-                
-                try {
-                    const resultado = JSON.parse(stdout);
-                    res.json(resultado);
-                } catch (e) {
-                    console.error('Erro ao parsear:', stdout);
-                    res.json({ status: 'erro', mensagem: 'Erro ao processar resultado' });
-                }
-            });
-        
-    } catch (err) {
-        if (err.message.includes('Saldo insuficiente')) {
-            res.status(400).json({ error: err.message });
-        } else {
-            console.error('Erro:', err);
-            res.status(500).json({ error: err.message });
-        }
-    }
-});
-
 // ==================== INICIAR SERVIDOR ====================
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n${'='.repeat(50)}`);
     console.log(`🚀 SERVIDOR CH VENDAS`);
     console.log(`${'='.repeat(50)}`);
@@ -633,3 +548,4 @@ app.listen(PORT, () => {
     console.log(`💰 Sistema de carteira: ativo`);
     console.log(`${'='.repeat(50)}\n`);
 });
+EOF
