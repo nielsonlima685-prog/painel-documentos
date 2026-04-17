@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>CH Vendas - Painel</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -15,11 +16,11 @@
         }
         body {
             font-family: 'Inter', sans-serif;
-            background: #0a0a0f;
-            color: #fafafa;
+            background: var(--tg-theme-bg-color, #0a0a0f);
+            color: var(--tg-theme-text-color, #fafafa);
         }
         .glass-card {
-            background: rgba(24, 24, 27, 0.8);
+            background: var(--tg-theme-secondary-bg-color, rgba(24, 24, 27, 0.8));
             backdrop-filter: blur(12px);
             border: 1px solid rgba(63, 63, 70, 0.4);
             border-radius: 20px;
@@ -47,7 +48,7 @@
             top: 0;
             width: 260px;
             height: 100%;
-            background: #09090b;
+            background: var(--tg-theme-secondary-bg-color, #09090b);
             border-right: 1px solid #27272a;
             transform: translateX(-100%);
             transition: transform 0.3s ease;
@@ -89,6 +90,25 @@
         .telegram-float:hover {
             transform: scale(1.1);
             background: #006699;
+        }
+        
+        /* Botão Fechar do Mini App */
+        .close-miniapp {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, white);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         
         @media (max-width: 768px) {
@@ -154,9 +174,30 @@
         .sidebar-link:hover {
             background: rgba(39, 39, 42, 0.5);
         }
+        
+        /* Botão do Mini App */
+        .miniapp-btn {
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, white);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .miniapp-btn:hover {
+            opacity: 0.9;
+            transform: scale(1.02);
+        }
     </style>
 </head>
 <body>
+    <!-- Botão Fechar (só aparece dentro do Mini App) -->
+    <button id="close-miniapp" class="close-miniapp" style="display: none;" onclick="closeMiniApp()">
+        <i class="fas fa-times"></i>
+    </button>
+    
     <!-- Overlay -->
     <div id="overlay" class="overlay" onclick="closeMenu()"></div>
     
@@ -188,9 +229,8 @@
                 <a href="/chat-bot" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
                     <i class="fab fa-whatsapp w-5"></i> Chat Bot (WhatsApp)
                 </a>
-                <!-- NOVO: Link para o Telegram Bot -->
                 <a href="https://t.me/Chbicosbot" target="_blank" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
-                    <i class="fab fa-telegram w-5"></i> Telegram Bot (Bicos)
+                    <i class="fab fa-telegram w-5"></i> Telegram Bot
                 </a>
                 <a href="/bicos" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
                     <i class="fas fa-briefcase w-5"></i> Bicos
@@ -236,6 +276,18 @@
 
         <div class="p-4 md:p-8">
             <div class="max-w-6xl mx-auto">
+                
+                <!-- Banner do Mini App (só aparece dentro do Telegram) -->
+                <div id="miniapp-banner" style="display: none; background: linear-gradient(135deg, #0088cc, #006699); border-radius: 16px; padding: 20px; margin-bottom: 30px; text-align: center;">
+                    <i class="fab fa-telegram text-4xl mb-2"></i>
+                    <h2 class="text-xl font-bold">CH Bicos Bot</h2>
+                    <p class="opacity-90 text-sm">Compre BICOS diretamente aqui! Use os botões abaixo para navegar.</p>
+                    <div class="flex gap-3 justify-center mt-4">
+                        <button onclick="window.location.href='/bicos'" class="miniapp-btn">📦 Ver BICOS</button>
+                        <button onclick="window.Telegram.WebApp.close()" class="miniapp-btn" style="background: #dc2626;">❌ Fechar</button>
+                    </div>
+                </div>
+
                 <!-- Status Cards -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-12">
                     <div class="glass-card p-4 md:p-5 flex items-center gap-4">
@@ -310,8 +362,8 @@
                         </div>
                     </div>
 
-                    <!-- NOVO: Card Telegram Bot (Bicos) -->
-                    <div onclick="window.open('https://t.me/Chbicosbot', '_blank')" class="glass-card p-4 md:p-6 feature-card">
+                    <!-- Card Telegram Bot (Mini App) -->
+                    <div id="telegram-card" class="glass-card p-4 md:p-6 feature-card">
                         <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-[#0088cc]/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
                             <i class="fab fa-telegram text-[#0088cc]"></i>
                         </div>
@@ -393,6 +445,46 @@
 
     <script>
         let userData = null;
+        let tg = null;
+        
+        // Inicializar Telegram WebApp
+        function initTelegramWebApp() {
+            if (window.Telegram && window.Telegram.WebApp) {
+                tg = window.Telegram.WebApp;
+                tg.ready();
+                tg.expand();
+                
+                // Mostrar botão de fechar
+                document.getElementById('close-miniapp').style.display = 'flex';
+                
+                // Mostrar banner do Mini App
+                document.getElementById('miniapp-banner').style.display = 'block';
+                
+                // Aplicar tema do Telegram
+                document.body.style.background = tg.themeParams.bg_color || '#0a0a0f';
+                document.body.style.color = tg.themeParams.text_color || '#fafafa';
+                
+                // Obter dados do usuário do Telegram
+                const user = tg.initDataUnsafe?.user;
+                if (user) {
+                    console.log('Usuário do Telegram:', user);
+                    // Opcional: enviar dados do usuário para o backend
+                    fetch('/api/telegram-user', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: user.id, nome: user.first_name })
+                    });
+                }
+            }
+        }
+        
+        function closeMiniApp() {
+            if (tg) {
+                tg.close();
+            } else {
+                window.close();
+            }
+        }
         
         function toggleMenu() {
             document.getElementById('sidebar').classList.toggle('open');
@@ -431,7 +523,20 @@
         function logout() {
             window.location.href = '/logout';
         }
+        
+        // Configurar card do Telegram
+        document.getElementById('telegram-card').addEventListener('click', function() {
+            if (tg) {
+                // Estamos dentro do Telegram, abrir Mini App
+                window.location.href = '/bicos';
+            } else {
+                // Fora do Telegram, abrir link normal
+                window.open('https://t.me/Chbicosbot', '_blank');
+            }
+        });
 
+        // Inicializar
+        initTelegramWebApp();
         loadSession();
     </script>
 </body>
