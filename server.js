@@ -708,6 +708,11 @@ app.get('/', (req, res) => {
     }
 });
 
+// Mini App - Loja de BICOS (sem autenticação)
+app.get('/loja', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'loja.html'));
+});
+
 // ==================== INICIAR SERVIDOR ====================
 app.listen(PORT, () => {
     console.log(`\n${'='.repeat(50)}`);
