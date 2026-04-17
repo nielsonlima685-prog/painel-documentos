@@ -1,4 +1,3 @@
-cat > /var/www/chvendas/server.js << 'EOF'
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
@@ -44,7 +43,7 @@ const defaultUsers = [
         nome: 'Carlos Henrique', 
         plano: 'MASTER PREMIUM', 
         createdAt: new Date().toISOString(), 
-        saldo: 100,
+        saldo: 100,  // Apenas admin tem saldo inicial
         transacoes: []
     }
 ];
@@ -271,7 +270,7 @@ app.post('/api/consultar-antecedentes', requireAuth, async (req, res) => {
     try {
         await debitarSaldo(userId, valorServico, 'Consulta de antecedentes');
         
-        // Simular consulta
+        // Simular consulta (substituir por API real depois)
         const resultado = {
             status: 'aprovado',
             mensagem: '✅ Nada consta na base de dados. Motorista aprovado!',
@@ -415,7 +414,7 @@ app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
         nome: nome || user,
         plano: role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR',
         createdAt: new Date().toISOString(),
-        saldo: saldo || 0,
+        saldo: 0,  // NOVOS USUÁRIOS COMEÇAM COM R$ 0
         transacoes: []
     };
     users.push(newUser);
@@ -455,7 +454,7 @@ app.delete('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
     res.json({ success: true });
 });
 
-// ==================== ADMIN - ESTATÍSTICAS DO BOT ====================
+// ==================== ADMIN - ESTATÍSTICAS ====================
 const BOT_STATS_FILE = path.join(__dirname, 'data', 'bot_stats.json');
 
 if (!fs.existsSync(BOT_STATS_FILE)) {
@@ -522,7 +521,7 @@ app.get('/bot-admin', requireAuth, requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'bot-admin.html'));
 });
 
-// Loja pública
+// ==================== LOJA PÚBLICA ====================
 app.get('/loja', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'loja.html'));
 });
@@ -546,6 +545,6 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📄 Emissão CRLV: /emissao (R$ 40,00)`);
     console.log(`🔍 Consultador: /consultador (R$ 10,00)`);
     console.log(`💰 Sistema de carteira: ativo`);
+    console.log(`💳 Novos usuários: saldo R$ 0,00`);
     console.log(`${'='.repeat(50)}\n`);
 });
-EOF
