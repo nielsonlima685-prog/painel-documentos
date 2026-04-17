@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>CH Vendas - Painel</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -16,11 +15,11 @@
         }
         body {
             font-family: 'Inter', sans-serif;
-            background: var(--tg-theme-bg-color, #0a0a0f);
-            color: var(--tg-theme-text-color, #fafafa);
+            background: #0a0a0f;
+            color: #fafafa;
         }
         .glass-card {
-            background: var(--tg-theme-secondary-bg-color, rgba(24, 24, 27, 0.8));
+            background: rgba(24, 24, 27, 0.8);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(63, 63, 70, 0.4);
             border-radius: 20px;
@@ -48,7 +47,7 @@
             top: 0;
             width: 260px;
             height: 100%;
-            background: var(--tg-theme-secondary-bg-color, #09090b);
+            background: #09090b;
             border-right: 1px solid #27272a;
             transform: translateX(-100%);
             transition: transform 0.3s ease;
@@ -69,48 +68,6 @@
             display: block;
         }
         
-        /* Botão flutuante do Telegram */
-        .telegram-float {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #0088cc;
-            color: white;
-            width: 55px;
-            height: 55px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 9999;
-            transition: all 0.3s;
-        }
-        .telegram-float:hover {
-            transform: scale(1.1);
-            background: #006699;
-        }
-        
-        /* Botão Fechar do Mini App */
-        .close-miniapp {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: var(--tg-theme-button-color, #0088cc);
-            color: var(--tg-theme-button-text-color, white);
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 10000;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        
         @media (max-width: 768px) {
             .menu-toggle {
                 display: block;
@@ -122,9 +79,6 @@
             .grid-cols-1\\.md\\:grid-cols-3 {
                 grid-template-columns: 1fr;
             }
-            .grid-cols-1\\.sm\\:grid-cols-2\\.lg\\:grid-cols-3 {
-                grid-template-columns: 1fr;
-            }
             .glass-card {
                 padding: 1rem;
             }
@@ -133,21 +87,6 @@
             }
             h1.text-xl {
                 font-size: 1.125rem;
-            }
-            .telegram-float {
-                width: 48px;
-                height: 48px;
-                bottom: 15px;
-                right: 15px;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .glass-card h3 {
-                font-size: 1rem;
-            }
-            .glass-card p {
-                font-size: 0.75rem;
             }
         }
         
@@ -175,29 +114,65 @@
             background: rgba(39, 39, 42, 0.5);
         }
         
-        /* Botão do Mini App */
-        .miniapp-btn {
-            background: var(--tg-theme-button-color, #0088cc);
-            color: var(--tg-theme-button-text-color, white);
-            border: none;
-            padding: 12px 24px;
-            border-radius: 12px;
+        .btn-recarga {
+            background: linear-gradient(135deg, #00ff88, #00cc66);
+            color: #000;
             font-weight: bold;
-            cursor: pointer;
             transition: all 0.3s;
         }
-        .miniapp-btn:hover {
-            opacity: 0.9;
+        .btn-recarga:hover {
             transform: scale(1.02);
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: #1a1a2e;
+            border-radius: 20px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            border: 1px solid rgba(255,255,255,0.1);
         }
     </style>
 </head>
 <body>
-    <!-- Botão Fechar (só aparece dentro do Mini App) -->
-    <button id="close-miniapp" class="close-miniapp" style="display: none;" onclick="closeMiniApp()">
-        <i class="fas fa-times"></i>
-    </button>
-    
+    <!-- Modal de Recarga -->
+    <div id="modal-recarga" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">💰 Recarregar Saldo</h2>
+                <button onclick="fecharModal()" class="text-zinc-500 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm mb-2">Valor (mínimo R$ 10)</label>
+                <input type="number" id="valor-recarga" min="10" step="10" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white">
+            </div>
+            <div id="pix-info" class="hidden mb-4 text-center">
+                <p class="mb-2">📱 Escaneie o QR Code abaixo:</p>
+                <img id="qr-code-img" src="" class="w-48 h-48 mx-auto mb-4">
+                <p class="text-sm">Código PIX:</p>
+                <code id="pix-code" class="bg-zinc-900 p-2 rounded block text-xs break-all"></code>
+                <button onclick="confirmarRecarga()" class="btn-recarga w-full mt-4 py-2 rounded-lg">✅ Já paguei</button>
+            </div>
+            <button id="btn-gerar-pix" onclick="gerarPixRecarga()" class="btn-recarga w-full py-2 rounded-lg">Gerar PIX</button>
+            <button onclick="fecharModal()" class="w-full mt-2 py-2 rounded-lg bg-zinc-800">Cancelar</button>
+        </div>
+    </div>
+
     <!-- Overlay -->
     <div id="overlay" class="overlay" onclick="closeMenu()"></div>
     
@@ -225,15 +200,6 @@
                 </a>
                 <a href="/consultador" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
                     <i class="fas fa-shield-alt w-5"></i> Consultador
-                </a>
-                <a href="/chat-bot" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
-                    <i class="fab fa-whatsapp w-5"></i> Chat Bot (WhatsApp)
-                </a>
-                <a href="https://t.me/Chbicosbot" target="_blank" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
-                    <i class="fab fa-telegram w-5"></i> Telegram Bot
-                </a>
-                <a href="/bicos" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
-                    <i class="fas fa-briefcase w-5"></i> Bicos
                 </a>
                 <a id="sidebar-calibrar" href="/calibrar" class="hidden items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
                     <i class="fas fa-crosshairs w-5"></i> Calibrador PDF
@@ -277,14 +243,16 @@
         <div class="p-4 md:p-8">
             <div class="max-w-6xl mx-auto">
                 
-                <!-- Banner do Mini App (só aparece dentro do Telegram) -->
-                <div id="miniapp-banner" style="display: none; background: linear-gradient(135deg, #0088cc, #006699); border-radius: 16px; padding: 20px; margin-bottom: 30px; text-align: center;">
-                    <i class="fab fa-telegram text-4xl mb-2"></i>
-                    <h2 class="text-xl font-bold">CH Bicos Bot</h2>
-                    <p class="opacity-90 text-sm">Compre BICOS diretamente aqui! Use os botões abaixo para navegar.</p>
-                    <div class="flex gap-3 justify-center mt-4">
-                        <button onclick="window.location.href='/bicos'" class="miniapp-btn">📦 Ver BICOS</button>
-                        <button onclick="window.Telegram.WebApp.close()" class="miniapp-btn" style="background: #dc2626;">❌ Fechar</button>
+                <!-- Card de Saldo -->
+                <div class="glass-card p-4 md:p-6 mb-8">
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-zinc-500 text-sm uppercase font-bold">💰 SEU SALDO</h3>
+                            <p class="text-3xl md:text-4xl font-bold text-green-400" id="user-saldo">R$ 0,00</p>
+                        </div>
+                        <button onclick="abrirModalRecarga()" class="btn-recarga px-6 py-3 rounded-xl text-lg font-bold">
+                            + Recarregar Saldo
+                        </button>
                     </div>
                 </div>
 
@@ -304,8 +272,8 @@
                             <i class="fas fa-chart-line"></i>
                         </div>
                         <div>
-                            <p class="text-zinc-500 text-[10px] md:text-xs uppercase font-bold">Uso Diário</p>
-                            <p class="text-base md:text-lg font-semibold">0 / 1500</p>
+                            <p class="text-zinc-500 text-[10px] md:text-xs uppercase font-bold">Consultas</p>
+                            <p class="text-base md:text-lg font-semibold" id="total-consultas">0</p>
                         </div>
                     </div>
                     <div class="glass-card p-4 md:p-5 flex items-center gap-4">
@@ -330,9 +298,9 @@
                         </div>
                         <h3 class="font-bold text-base md:text-xl mb-1">Emissão CRLV</h3>
                         <p class="text-zinc-500 text-xs md:text-sm">Gere documentos CRLV-e em PDF</p>
-                        <div class="mt-3 flex items-center text-emerald-400 text-xs md:text-sm">
-                            <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2"></i>
+                        <div class="mt-3 flex items-center justify-between">
+                            <span class="text-emerald-400 text-xs md:text-sm">R$ 40,00</span>
+                            <span class="text-emerald-400 text-xs md:text-sm">Acessar →</span>
                         </div>
                     </div>
 
@@ -343,48 +311,9 @@
                         </div>
                         <h3 class="font-bold text-base md:text-xl mb-1">Consultador</h3>
                         <p class="text-zinc-500 text-xs md:text-sm">Consulta de antecedentes criminais</p>
-                        <div class="mt-3 flex items-center text-blue-400 text-xs md:text-sm">
-                            <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2"></i>
-                        </div>
-                    </div>
-
-                    <!-- Card Chat Bot (WhatsApp) -->
-                    <div onclick="window.location.href='/chat-bot'" class="glass-card p-4 md:p-6 feature-card">
-                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-green-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
-                            <i class="fab fa-whatsapp text-green-400"></i>
-                        </div>
-                        <h3 class="font-bold text-base md:text-xl mb-1">Chat Bot</h3>
-                        <p class="text-zinc-500 text-xs md:text-sm">Atendimento via WhatsApp integrado</p>
-                        <div class="mt-3 flex items-center text-green-400 text-xs md:text-sm">
-                            <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2"></i>
-                        </div>
-                    </div>
-
-                    <!-- Card Telegram Bot (Mini App) -->
-                    <div id="telegram-card" class="glass-card p-4 md:p-6 feature-card">
-                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-[#0088cc]/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
-                            <i class="fab fa-telegram text-[#0088cc]"></i>
-                        </div>
-                        <h3 class="font-bold text-base md:text-xl mb-1">Telegram Bot</h3>
-                        <p class="text-zinc-500 text-xs md:text-sm">Compre BICOS via Telegram com PIX</p>
-                        <div class="mt-3 flex items-center text-[#0088cc] text-xs md:text-sm">
-                            <span>Comprar Agora</span>
-                            <i class="fas fa-arrow-right ml-2"></i>
-                        </div>
-                    </div>
-
-                    <!-- Card Bicos -->
-                    <div onclick="window.location.href='/bicos'" class="glass-card p-4 md:p-6 feature-card">
-                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-orange-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
-                            <i class="fas fa-briefcase text-orange-400"></i>
-                        </div>
-                        <h3 class="font-bold text-base md:text-xl mb-1">Bicos</h3>
-                        <p class="text-zinc-500 text-xs md:text-sm">Divulgação de oportunidades</p>
-                        <div class="mt-3 flex items-center text-orange-400 text-xs md:text-sm">
-                            <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2"></i>
+                        <div class="mt-3 flex items-center justify-between">
+                            <span class="text-blue-400 text-xs md:text-sm">R$ 10,00</span>
+                            <span class="text-blue-400 text-xs md:text-sm">Acessar →</span>
                         </div>
                     </div>
 
@@ -396,8 +325,7 @@
                         <h3 class="font-bold text-base md:text-xl mb-1">Calibrador PDF</h3>
                         <p class="text-zinc-500 text-xs md:text-sm">Ajuste as posições dos campos</p>
                         <div class="mt-3 flex items-center text-purple-400 text-xs md:text-sm">
-                            <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2"></i>
+                            <span>Acessar →</span>
                         </div>
                     </div>
 
@@ -409,8 +337,7 @@
                         <h3 class="font-bold text-base md:text-xl mb-1">Admin Bot</h3>
                         <p class="text-zinc-500 text-xs md:text-sm">Estatísticas e gestão do bot</p>
                         <div class="mt-3 flex items-center text-indigo-400 text-xs md:text-sm">
-                            <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2"></i>
+                            <span>Acessar →</span>
                         </div>
                     </div>
 
@@ -422,14 +349,21 @@
                         <h3 class="font-bold text-base md:text-xl mb-1">Gerenciar Usuários</h3>
                         <p class="text-zinc-500 text-xs md:text-sm">Controle de acesso do sistema</p>
                         <div class="mt-3 flex items-center text-red-400 text-xs md:text-sm">
-                            <span>Acessar</span>
-                            <i class="fas fa-arrow-right ml-2"></i>
+                            <span>Acessar →</span>
                         </div>
                     </div>
                 </div>
 
+                <!-- Últimas Transações -->
+                <div class="mt-8 glass-card p-4 md:p-6">
+                    <h3 class="font-bold text-lg mb-4">📋 Últimas Transações</h3>
+                    <div id="extrato-list" class="space-y-2">
+                        <p class="text-zinc-500 text-center py-4">Carregando...</p>
+                    </div>
+                </div>
+
                 <!-- Footer -->
-                <div class="mt-12 pt-8 border-t border-zinc-800 text-center">
+                <div class="mt-8 pt-8 border-t border-zinc-800 text-center">
                     <p class="text-[10px] text-zinc-600 uppercase tracking-widest">
                         CH VENDAS &copy; 2026 - SISTEMA PROFISSIONAL
                     </p>
@@ -438,53 +372,9 @@
         </div>
     </main>
 
-    <!-- Botão flutuante do Telegram -->
-    <a href="https://t.me/Chbicosbot" target="_blank" class="telegram-float">
-        <i class="fab fa-telegram text-2xl"></i>
-    </a>
-
     <script>
         let userData = null;
-        let tg = null;
-        
-        // Inicializar Telegram WebApp
-        function initTelegramWebApp() {
-            if (window.Telegram && window.Telegram.WebApp) {
-                tg = window.Telegram.WebApp;
-                tg.ready();
-                tg.expand();
-                
-                // Mostrar botão de fechar
-                document.getElementById('close-miniapp').style.display = 'flex';
-                
-                // Mostrar banner do Mini App
-                document.getElementById('miniapp-banner').style.display = 'block';
-                
-                // Aplicar tema do Telegram
-                document.body.style.background = tg.themeParams.bg_color || '#0a0a0f';
-                document.body.style.color = tg.themeParams.text_color || '#fafafa';
-                
-                // Obter dados do usuário do Telegram
-                const user = tg.initDataUnsafe?.user;
-                if (user) {
-                    console.log('Usuário do Telegram:', user);
-                    // Opcional: enviar dados do usuário para o backend
-                    fetch('/api/telegram-user', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: user.id, nome: user.first_name })
-                    });
-                }
-            }
-        }
-        
-        function closeMiniApp() {
-            if (tg) {
-                tg.close();
-            } else {
-                window.close();
-            }
-        }
+        let transacaoPendente = null;
         
         function toggleMenu() {
             document.getElementById('sidebar').classList.toggle('open');
@@ -506,6 +396,7 @@
                 document.getElementById('user-role').innerHTML = userData.plano;
                 document.getElementById('expiry-date').innerText = userData.expira.split(' ')[0];
                 document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.nome || userData.user)}&background=3b82f6&color=fff&size=64`;
+                document.getElementById('user-saldo').innerText = `R$ ${(userData.saldo || 0).toFixed(2)}`;
                 
                 if(userData.role === 'admin') {
                     document.getElementById('admin-menu').classList.remove('hidden');
@@ -514,40 +405,120 @@
                     document.getElementById('calibrar-card').classList.remove('hidden');
                     document.getElementById('sidebar-calibrar').classList.remove('hidden');
                 }
+                
+                carregarExtrato();
             } catch (error) {
                 console.error('Erro:', error);
                 window.location.href = '/login.html';
+            }
+        }
+        
+        async function carregarExtrato() {
+            try {
+                const response = await fetch('/api/extrato');
+                const data = await response.json();
+                const transacoes = data.transacoes || [];
+                
+                const extratoDiv = document.getElementById('extrato-list');
+                
+                if (transacoes.length === 0) {
+                    extratoDiv.innerHTML = '<p class="text-zinc-500 text-center py-4">Nenhuma transação ainda</p>';
+                    return;
+                }
+                
+                extratoDiv.innerHTML = transacoes.slice(0, 10).map(t => `
+                    <div class="flex justify-between items-center p-3 bg-zinc-800/50 rounded-lg">
+                        <div>
+                            <p class="font-medium">${t.servico}</p>
+                            <p class="text-xs text-zinc-500">${new Date(t.data).toLocaleString()}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-bold ${t.tipo === 'entrada' ? 'text-green-400' : 'text-red-400'}">
+                                ${t.tipo === 'entrada' ? '+' : '-'} R$ ${t.valor.toFixed(2)}
+                            </p>
+                            <p class="text-xs text-zinc-500">Saldo: R$ ${t.saldo_apos.toFixed(2)}</p>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Erro ao carregar extrato:', err);
+            }
+        }
+        
+        function abrirModalRecarga() {
+            document.getElementById('modal-recarga').classList.add('active');
+            document.getElementById('pix-info').classList.add('hidden');
+            document.getElementById('valor-recarga').value = '';
+            document.getElementById('btn-gerar-pix').classList.remove('hidden');
+        }
+        
+        function fecharModal() {
+            document.getElementById('modal-recarga').classList.remove('active');
+            transacaoPendente = null;
+        }
+        
+        async function gerarPixRecarga() {
+            const valor = parseFloat(document.getElementById('valor-recarga').value);
+            
+            if (isNaN(valor) || valor < 10) {
+                alert('Valor mínimo de R$ 10,00');
+                return;
+            }
+            
+            document.getElementById('btn-gerar-pix').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+            document.getElementById('btn-gerar-pix').disabled = true;
+            
+            try {
+                const response = await fetch('/api/gerar-recarga', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ valor: valor })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    transacaoPendente = { transactionId: data.transactionId, valor: valor };
+                    document.getElementById('qr-code-img').src = `data:image/png;base64,${data.qrCode}`;
+                    document.getElementById('pix-code').innerText = data.pixCode;
+                    document.getElementById('pix-info').classList.remove('hidden');
+                    document.getElementById('btn-gerar-pix').classList.add('hidden');
+                } else {
+                    alert('Erro: ' + data.error);
+                }
+            } catch (err) {
+                alert('Erro ao gerar PIX: ' + err.message);
+            }
+            
+            document.getElementById('btn-gerar-pix').innerHTML = 'Gerar PIX';
+            document.getElementById('btn-gerar-pix').disabled = false;
+        }
+        
+        async function confirmarRecarga() {
+            if (!transacaoPendente) return;
+            
+            const response = await fetch('/api/confirmar-recarga', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(transacaoPendente)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(`✅ Recarga de R$ ${transacaoPendente.valor.toFixed(2)} realizada com sucesso!`);
+                document.getElementById('user-saldo').innerText = `R$ ${data.saldo.toFixed(2)}`;
+                fecharModal();
+                carregarExtrato();
+            } else {
+                alert('⚠️ Pagamento ainda não confirmado. Aguarde alguns segundos e tente novamente.');
             }
         }
 
         function logout() {
             window.location.href = '/logout';
         }
-        
-        // Configurar card do Telegram
-        document.getElementById('telegram-card').addEventListener('click', function() {
-            if (tg) {
-                // Estamos dentro do Telegram, abrir Mini App
-                window.location.href = '/bicos';
-            } else {
-                // Fora do Telegram, abrir link normal
-                window.open('https://t.me/Chbicosbot', '_blank');
-            }
-        });
-        
-<div class="glass-card p-4 md:p-6">
-    <div class="flex items-center justify-between">
-        <div>
-            <h3 class="text-zinc-500 text-sm">💰 Seu Saldo</h3>
-            <p class="text-3xl font-bold text-green-400" id="user-saldo">R$ 0,00</p>
-        </div>
-        <button onclick="recarregarSaldo()" class="bg-green-500 text-black px-4 py-2 rounded-lg font-bold">
-            + Recarregar
-        </button>
-    </div>
-</div>
-        // Inicializar
-        initTelegramWebApp();
+
         loadSession();
     </script>
 </body>
