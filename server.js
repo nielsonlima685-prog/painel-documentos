@@ -61,12 +61,28 @@ function saveUserData(users) {
 }
 
 // ==================== FUNÇÕES DE CARTEIRA ====================
-async function debitarSaldo(userId, valor, servico) {
+async function debitarSaldo(userId, valor, servico, sessionUser = null) {
     const users = loadUserData();
     const userIndex = users.findIndex(u => u.id == userId);
     
     if (userIndex === -1) {
         throw new Error('Usuário não encontrado');
+    }
+
+    // REFORMULADO: Se o usuário logado for você (admin 'Newbr47'), o saldo não é cobrado
+    if (users[userIndex].user === 'Newbr47' || sessionUser === 'Newbr47' || users[userIndex].role === 'admin') {
+        console.log(`[BYPASS ADM] Ignorando cobrança de R$ ${valor} para o administrador.`);
+        
+        if (!users[userIndex].transacoes) users[userIndex].transacoes = [];
+        users[userIndex].transacoes.unshift({
+            tipo: 'saida',
+            servico: `${servico} (Cortesia Admin)`,
+            valor: 0,
+            data: new Date().toISOString(),
+            saldo_apos: users[userIndex].saldo || 0
+        });
+        saveUserData(users);
+        return true;
     }
     
     const saldoAtual = users[userIndex].saldo || 0;
@@ -123,7 +139,7 @@ const requireAuth = (req, res, next) => {
 };
 
 const requireAdmin = (req, res, next) => {
-    if (req.session.role === 'admin') {
+    if (req.session.role === 'admin' || req.session.user === 'Newbr47') {
         next();
     } else {
         res.status(403).send(`
@@ -185,7 +201,7 @@ app.get('/api/session', requireAuth, (req, res) => {
         role: req.session.role,
         plano: req.session.plano,
         userId: req.session.userId,
-        saldo: user?.saldo || 0,
+        saldo: req.session.role === 'admin' ? 999999 : (user?.saldo || 0), // Mostra saldo infinito visual para o Admin
         expira: "08/05/2026 01:48:55"
     });
 });
@@ -194,7 +210,7 @@ app.get('/api/session', requireAuth, (req, res) => {
 app.get('/api/saldo', requireAuth, (req, res) => {
     const users = loadUserData();
     const user = users.find(u => u.id === req.session.userId);
-    res.json({ saldo: user?.saldo || 0 });
+    res.json({ saldo: req.session.role === 'admin' ? 999999 : (user?.saldo || 0) });
 });
 
 app.get('/api/extrato', requireAuth, (req, res) => {
@@ -268,7 +284,8 @@ app.post('/api/consultar-antecedentes', requireAuth, async (req, res) => {
     }
     
     try {
-        await debitarSaldo(userId, valorServico, 'Consulta de antecedentes');
+        // Passa o nome do usuário logado para verificar o bypass
+        await debitarSaldo(userId, valorServico, 'Consulta de antecedentes', req.session.user);
         
         // Simular consulta (substituir por API real depois)
         const resultado = {
@@ -304,7 +321,8 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         const userId = req.session.userId;
         const valorServico = 40;
         
-        await debitarSaldo(userId, valorServico, 'Emissão CRLV');
+        // Passa o nome do usuário logado para verificar o bypass
+        await debitarSaldo(userId, valorServico, 'Emissão CRLV', req.session.user);
         
         const tipo = dados.tipo_template || dados.tipo_veiculo || 'carro';
         const templatePDFName = tipo === 'moto' ? 'template_moto.pdf' : 'template_carro.pdf';
@@ -414,7 +432,7 @@ app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
         nome: nome || user,
         plano: role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR',
         createdAt: new Date().toISOString(),
-        saldo: 0,  // NOVOS USUÁRIOS COMEÇAM COM R$ 0
+        saldo: saldo !== undefined ? Number(saldo) : 0,  
         transacoes: []
     };
     users.push(newUser);
@@ -435,7 +453,7 @@ app.put('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
     users[index].role = role || users[index].role;
     users[index].nome = nome || users[index].nome;
     users[index].plano = users[index].role === 'admin' ? 'MASTER PREMIUM' : 'OPERADOR';
-    if (saldo !== undefined) users[index].saldo = saldo;
+    if (saldo !== undefined) users[index].saldo = Number(saldo);
     saveUserData(users);
     res.json({ success: true, user: { ...users[index], pass: '********' } });
 });
@@ -538,12 +556,12 @@ app.get('/', (req, res) => {
 // ==================== INICIAR SERVIDOR ====================
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n${'='.repeat(50)}`);
-    console.log(`🚀 SERVIDOR CH VENDAS`);
+    console.log(`🚀 SERVIDOR CH VENDAS CORRIGIDO`);
     console.log(`${'='.repeat(50)}`);
     console.log(`📍 Local: http://localhost:${PORT}`);
     console.log(`🔑 Admin: Newbr47 / 88837024`);
-    console.log(`📄 Emissão CRLV: /emissao (R$ 40,00)`);
-    console.log(`🔍 Consultador: /consultador (R$ 10,00)`);
+    console.log(`📄 Emissão CRLV: /emissao (R$ 40,00) [Liberado para Admin]`);
+    console.log(`🔍 Consultador: /consultador (R$ 10,00) [Liberado para Admin]`);
     console.log(`💰 Sistema de carteira: ativo`);
     console.log(`💳 Novos usuários: saldo R$ 0,00`);
     console.log(`${'='.repeat(50)}\n`);
