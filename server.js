@@ -3,7 +3,7 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
-const { exec = () => {} } = require('child_process'); // Fallback seguro caso não use
+const { exec = () => {} } = require('child_process');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 const app = express();
@@ -55,7 +55,22 @@ function requireAdmin(req, res, next) {
     res.status(403).send('Acesso negado.');
 }
 
-// ==================== ROTAS AUTENTICAÇÃO E SESSÃO ====================
+// ==================== ROTAS DE AUTENTICAÇÃO (SISTEMA DE LOGIN) ====================
+
+// ROTA 1: Suporte para formulários que enviam para /login
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    const users = readUsers();
+    const user = users.find(u => u.username === username && u.password === password);
+    if (user) {
+        req.session.user = user;
+        res.json({ success: true });
+    } else {
+        res.status(401).json({ success: false, error: 'Credenciais inválidas' });
+    }
+});
+
+// ROTA 2: Suporte para chamadas via API fetch que batem em /api/login
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const users = readUsers();
