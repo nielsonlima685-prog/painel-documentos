@@ -9,7 +9,7 @@ const { MercadoPagoConfig, Payment } = require('mercadopago');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Habilitar se estiver atrás de um proxy reverso como o Render para os cookies funcionarem 100%
+// Habilitar proxy para o Render gerenciar os cookies de sessão corretamente
 app.set('trust proxy', 1);
 
 // ==================== CONFIGURAÇÕES ====================
@@ -20,11 +20,11 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'ch-contas-secret-key',
-    resave: fashion = false,
-    saveUninitialized: false, // Alterado para false para evitar criar sessões vazias
+    resave: false,
+    saveUninitialized: false, 
     cookie: { 
         maxAge: 24 * 60 * 60 * 1000,
-        secure: false, // Deixe false se não estiver usando HTTPS estrito localmente, o Render gerencia isso
+        secure: false, // O Render lida com HTTPS na borda, manter false ajuda na compatibilidade local/deploy
         httpOnly: true
     }
 }));
@@ -68,7 +68,7 @@ function saveUserData(users) {
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
-// Inicializa os usuários na primeira execução
+// Inicializa o arquivo de dados na primeira execução
 loadUserData();
 
 // ==================== FUNÇÕES DE CARTEIRA ====================
@@ -80,6 +80,7 @@ async function debitarSaldo(userId, valor, servico, sessionUser = null) {
         throw new Error('Usuário não encontrado');
     }
 
+    // Bypass de cobrança se for o Administrador
     if (users[userIndex].user === 'Newbr47' || sessionUser === 'Newbr47' || users[userIndex].role === 'admin') {
         console.log(`[BYPASS ADM] Ignorando cobrança de R$ ${valor} para o administrador.`);
         if (!users[userIndex].transacoes) users[userIndex].transacoes = [];
@@ -140,7 +141,6 @@ const requireAuth = (req, res, next) => {
     if (req.session && req.session.user) {
         return next();
     } else {
-        // Se a chamada for de API interna, responde com JSON em vez de redirecionar para não quebrar o frontend
         if (req.xhr || req.path.startsWith('/api/')) {
             return res.status(401).json({ error: 'Sessão expirada' });
         }
@@ -167,21 +167,20 @@ const requireAdmin = (req, res, next) => {
     }
 };
 
-// ==================== ROTAS PÚBLICAS E AUTENTICAÇÃO ====================
+// ==================== ROTAS DE AUTENTICAÇÃO ====================
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
     const users = loadUserData();
     const usuarioValido = users.find(u => u.user === username && u.pass === password);
     
     if (usuarioValido) {
-        // Guardando dados estritos na sessão
         req.session.user = usuarioValido.user;
         req.session.nome = usuarioValido.nome;
         req.session.role = usuarioValido.role;
         req.session.plano = usuarioValido.plano;
         req.session.userId = usuarioValido.id;
         
-        // Salva explicitamente antes de redirecionar para garantir sincronia no Render
+        // Salva explicitamente a sessão antes do redirect para evitar loops no Render
         req.session.save((err) => {
             if (err) {
                 console.error("Erro ao salvar sessão:", err);
@@ -211,8 +210,7 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// ==================== API DE SESSÃO CORRIGIDA ====================
-// Rota unificada para bater com os seus diferentes arquivos frontend (home.html usa /api/user-info ou /api/session)
+// ==================== API DE SESSÃO / INFORMAÇÕES ====================
 app.get('/api/user-info', requireAuth, (req, res) => {
     const users = loadUserData();
     const user = users.find(u => u.user === req.session.user);
@@ -251,7 +249,7 @@ app.get('/api/extrato', requireAuth, (req, res) => {
     res.json(user ? (user.transacoes || []) : []);
 });
 
-// Gerar PIX para recarga
+// Gerar PIX Mercado Pago
 app.post('/api/gerar-recarga', requireAuth, async (req, res) => {
     const { valor } = req.body;
     const userId = req.session.userId;
@@ -283,7 +281,7 @@ app.post('/api/gerar-recarga', requireAuth, async (req, res) => {
     }
 });
 
-// Confirmar recarga
+// Confirmar pagamento PIX
 app.post('/api/confirmar-recarga', requireAuth, async (req, res) => {
     const { transactionId, valor } = req.body;
     const userId = req.session.userId;
@@ -330,7 +328,7 @@ app.post('/api/consultar-antecedentes', requireAuth, async (req, res) => {
     }
 });
 
-// ==================== API DE GERAÇÃO DE PDF ====================
+// ==================== API DE GERAÇÃO DO PDF (CRLV) ====================
 function formatarCpfCnpj(valor) {
     const limpo = valor.replace(/\D/g, '');
     if (limpo.length === 11) {
@@ -412,7 +410,7 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         res.send(Buffer.from(pdfBuffer));
 
     } catch (error) {
-        console.error("Erro crítico:", error);
+        console.error("Erro crítico CRLV:", error);
         res.status(500).send(error.message);
     }
 });
@@ -475,26 +473,99 @@ app.delete('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
     res.json({ success: true });
 });
 
-// ==================== API DE COORDENADAS (CRLV) ====================
+// ==================== API DE MAPAS E COORDENADAS (CRLV) ====================
 app.get('/api/coords', requireAuth, requireAdmin, (req, res) => {
     const tipo = req.query.tipo || 'moto';
+    
+    if (tipo === 'rg') {
+        const filePath = path.join(__dirname, 'assets', 'modelo_rg.template.json');
+        return res.json(fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {});
+    }
+
     const filePath = path.join(__dirname, 'assets', tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json');
     res.json(fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {});
 });
 
 app.post('/api/save-coords', requireAuth, requireAdmin, (req, res) => {
     const tipo = req.query.tipo || 'moto';
+    
+    if (tipo === 'rg') {
+        const filePath = path.join(__dirname, 'assets', 'modelo_rg.template.json');
+        try {
+            let currentCoords = {};
+            if (fs.existsSync(filePath)) currentCoords = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            const novasCoordenadas = { ...currentCoords, ...req.body };
+            fs.writeFileSync(filePath, JSON.stringify(novasCoordenadas, null, 2));
+            return res.sendStatus(200);
+        } catch (e) {
+            return res.status(500).send("Erro ao salvar coordenadas do RG via rota genérica.");
+        }
+    }
+
     const filePath = path.join(__dirname, 'assets', tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json');
     try {
-        if (!fs.existsSync(path.dirname(filePath))) fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
+        let currentCoords = {};
+        if (fs.existsSync(filePath)) currentCoords = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const novasCoordenadas = { ...currentCoords, ...req.body };
+        fs.writeFileSync(filePath, JSON.stringify(novasCoordenadas, null, 2));
         res.sendStatus(200);
     } catch (e) {
         res.status(500).send("Erro ao salvar coordenadas.");
     }
 });
 
-// ==================== ROTAS EXCLUSIVAS DO RG & CALIBRADOR ====================
+// ==================== ROTAS SEPARADAS E EXCLUSIVAS DO RG & CALIBRADOR ====================
+
+// Rota para o calibrador ler qual PDF renderizar ao fundo
+app.get('/api/model-pdf', requireAuth, requireAdmin, (req, res) => {
+    const tipo = req.query.tipo || 'moto';
+    let fileName = 'template_moto.pdf';
+
+    if (tipo === 'carro') fileName = 'template_carro.pdf';
+    if (tipo === 'rg') fileName = 'template_rg.pdf';
+
+    const filePath = path.join(__dirname, 'assets', fileName);
+
+    if (fs.existsSync(filePath)) {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.sendFile(filePath);
+    } else {
+        res.status(404).send("Arquivo PDF de modelo não encontrado.");
+    }
+});
+
+// Endpoint exclusivo de leitura das coordenadas do RG
+app.get('/api/coords-rg', requireAuth, requireAdmin, (req, res) => {
+    const filePath = path.join(__dirname, 'assets', 'modelo_rg.template.json');
+    res.json(fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {});
+});
+
+// Endpoint exclusivo de gravação - Inteligente (Mescla/Append campos)
+app.post('/api/save-coords-rg', requireAuth, requireAdmin, (req, res) => {
+    const filePath = path.join(__dirname, 'assets', 'modelo_rg.template.json');
+    try {
+        if (!fs.existsSync(path.dirname(filePath))) fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        
+        let currentCoords = {};
+        if (fs.existsSync(filePath)) {
+            try {
+                currentCoords = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            } catch (err) {
+                currentCoords = {};
+            }
+        }
+        
+        // Mescla campos movidos sem sobrescrever ou deletar o resto
+        const novasCoordenadas = { ...currentCoords, ...req.body };
+        
+        fs.writeFileSync(filePath, JSON.stringify(novasCoordenadas, null, 2));
+        res.sendStatus(200);
+    } catch (e) {
+        res.status(500).send("Erro ao salvar coordenadas do RG.");
+    }
+});
+
+// Roteamento de Views para o RG
 app.get('/gerar-rg', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'gerar-rg.html'));
 });
@@ -503,23 +574,7 @@ app.get('/calibrar-rg', requireAuth, requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'calibrador-rg.html'));
 });
 
-app.get('/api/coords-rg', requireAuth, requireAdmin, (req, res) => {
-    const filePath = path.join(__dirname, 'assets', 'modelo_rg.template.json');
-    res.json(fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {});
-});
-
-app.post('/api/save-coords-rg', requireAuth, requireAdmin, (req, res) => {
-    const filePath = path.join(__dirname, 'assets', 'modelo_rg.template.json');
-    try {
-        if (!fs.existsSync(path.dirname(filePath))) fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
-        res.sendStatus(200);
-    } catch (e) {
-        res.status(500).send("Erro ao salvar coordenadas do RG.");
-    }
-});
-
-// ==================== ROTAS DE INTERFACE PROTEGIDAS ====================
+// ==================== ROTAS DE INTERFACE PROTEGIDAS (VIEWS) ====================
 app.get('/home', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'home.html'));
 });
@@ -559,6 +614,10 @@ app.get('/', (req, res) => {
 // ==================== INICIAR SERVIDOR ====================
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n==================================================`);
-    console.log(`🚀 SERVIDOR CH VENDAS CORRIGIDO (ANTI-LOOP DE LOGIN)`);
+    console.log(`🚀 SERVIDOR COMPLETO INTEGRADO (CRLV & RG ATIVOS)`);
+    console.log(`==================================================`);
+    console.log(`📍 Local: http://localhost:${PORT}`);
+    console.log(`🪪 Painel do RG: /gerar-rg`);
+    console.log(`⚙️ Calibrador do RG: /calibrar-rg`);
     console.log(`==================================================\n`);
 });
