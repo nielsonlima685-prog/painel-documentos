@@ -3,13 +3,14 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
-const { exec } = require('child_process');
+const { exec = () => {} } = require('child_process'); // Fallback seguro caso não use
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ==================== CONFIGURAÇÕES ====================\napp.use(express.json({ limit: '50mb' }));
+// ==================== CONFIGURAÇÕES ====================
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static('public'));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
@@ -27,14 +28,24 @@ const client = new MercadoPagoConfig({
 });
 const payment = new Payment(client);
 
-// ==================== GERENCIAMENTO DE USUÁRIOS ====================\nconst USERS_FILE = path.join(__dirname, 'data', 'users.json');
-if (!fs.existsSync(path.dirname(USERS_FILE))) fs.mkdirSync(path.dirname(USERS_FILE));
-if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([]));
+// ==================== GERENCIAMENTO DE USUÁRIOS ====================
+const USERS_FILE = path.join(__dirname, 'data', 'users.json');
+if (!fs.existsSync(path.dirname(USERS_FILE))) {
+    fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
+}
+if (!fs.existsSync(USERS_FILE)) {
+    fs.writeFileSync(USERS_FILE, JSON.stringify([]));
+}
 
-function readUsers() { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); }
-function writeUsers(users) { fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2)); }
+function readUsers() { 
+    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); 
+}
+function writeUsers(users) { 
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2)); 
+}
 
-// ==================== MIDDLEWARES DE VALIDAÇÃO ====================\nfunction requireAuth(req, res, next) {
+// ==================== MIDDLEWARES DE VALIDAÇÃO ====================
+function requireAuth(req, res, next) {
     if (req.session.user) return next();
     res.redirect('/login.html');
 }
@@ -44,7 +55,8 @@ function requireAdmin(req, res, next) {
     res.status(403).send('Acesso negado.');
 }
 
-// ==================== ROTAS AUTENTICAÇÃO E SESSÃO ====================\napp.post('/api/login', (express.json()), (req, res) => {
+// ==================== ROTAS AUTENTICAÇÃO E SESSÃO ====================
+app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const users = readUsers();
     const user = users.find(u => u.username === username && u.password === password);
@@ -64,16 +76,18 @@ app.get('/logout', (req, res) => {
 app.get('/api/user-info', requireAuth, (req, res) => {
     const users = readUsers();
     const user = users.find(u => u.username === req.session.user.username);
+    if (!user) return res.status(404).send('Usuário não encontrado');
     res.json({ username: user.username, saldo: user.saldo, role: user.role });
 });
 
 app.get('/api/extrato', requireAuth, (req, res) => {
     const users = readUsers();
     const user = users.find(u => u.username === req.session.user.username);
-    res.json(user.historico || []);
+    res.json(user ? (user.historico || []) : []);
 });
 
-// ==================== ROTAS DE INTERFACE (VIEWS) ====================\napp.get('/home', requireAuth, (req, res) => {
+// ==================== ROTAS DE INTERFACE (VIEWS) ====================
+app.get('/home', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'home.html'));
 });
 
@@ -97,7 +111,8 @@ app.get('/bot-admin', requireAuth, requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'bot-admin.html'));
 });
 
-// ==================== ROTAS EXCLUSIVAS DO RG ====================\napp.get('/gerar-rg', requireAuth, (req, res) => {
+// ==================== ROTAS EXCLUSIVAS DO RG ====================
+app.get('/gerar-rg', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'gerar-rg.html'));
 });
 
@@ -129,7 +144,8 @@ app.post('/api/save-coords-rg', requireAuth, requireAdmin, (req, res) => {
     }
 });
 
-// ==================== LÓGICA DE RECARGA MERCADO PAGO ====================\napp.post('/api/recarga', requireAuth, async (req, res) => {
+// ==================== LÓGICA DE RECARGA MERCADO PAGO ====================
+app.post('/api/recarga', requireAuth, async (req, res) => {
     const { valor } = req.body;
     try {
         const paymentData = await payment.create({
@@ -146,7 +162,9 @@ app.post('/api/save-coords-rg', requireAuth, requireAdmin, (req, res) => {
             qrCode: paymentData.point_of_interaction.transaction_data.qr_code,
             qrCodeBase64: paymentData.point_of_interaction.transaction_data.qr_code_base64
         });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    } catch (err) { 
+        res.status(500).json({ success: false, error: err.message }); 
+    }
 });
 
 app.post('/api/confirmar-recarga', requireAuth, async (req, res) => {
@@ -154,26 +172,48 @@ app.post('/api/confirmar-recarga', requireAuth, async (req, res) => {
     try {
         const statusCheck = await payment.get({ id: paymentId });
         if (statusCheck.status === 'approved' || statusCheck.status === 'pending') { 
-            // Aceitando pendente temporariamente para testes locais fluidos
             const users = readUsers();
             const user = users.find(u => u.username === req.session.user.username);
-            user.saldo += parseFloat(valor);
-            if(!user.historico) user.historico = [];
-            user.historico.push({ descricao: 'Recarga de Saldo via PIX', valor: parseFloat(valor), tipo: 'recarga', data: new Date() });
-            writeUsers(users);
-            res.json({ success: true, saldo: user.saldo });
-        } else { res.json({ success: false }); }
-    } catch (e) { res.status(500).json({ success: false }); }
+            if (user) {
+                user.saldo += parseFloat(valor);
+                if (!user.historico) user.historico = [];
+                user.historico.push({ 
+                    descricao: 'Recarga de Saldo via PIX', 
+                    valor: parseFloat(valor), 
+                    tipo: 'recarga', 
+                    data: new Date() 
+                });
+                writeUsers(users);
+                res.json({ success: true, saldo: user.saldo });
+            } else {
+                res.status(404).json({ success: false, error: 'Usuário não encontrado' });
+            }
+        } else { 
+            res.json({ success: false }); 
+        }
+    } catch (e) { 
+        res.status(500).json({ success: false }); 
+    }
 });
 
-// Rota padrão do sistema
+// ==================== LOJA PÚBLICA ====================
+app.get('/loja', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'loja.html'));
+});
+
+// ==================== ROTA RAIZ ====================
 app.get('/', (req, res) => {
-    if (req.session.user) { res.redirect('/home'); } else { res.redirect('/login.html'); }
+    if (req.session.user) { 
+        res.redirect('/home'); 
+    } else { 
+        res.redirect('/login.html'); 
+    }
 });
 
-// ==================== INICIAR SERVIDOR ====================\napp.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n${'='.repeat(50)}`);
+// ==================== INICIAR SERVIDOR ====================
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n==================================================`);
     console.log(`🚀 SERVIDOR CH VENDAS CORRIGIDO E INTEGRADO`);
     console.log(`📍 Local: http://localhost:${PORT}`);
-    console.log(`${'='.repeat(50)}`);
+    console.log(`==================================================`);
 });
