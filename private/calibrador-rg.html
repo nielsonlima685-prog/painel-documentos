@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CH Contas - Calibrador de RG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <style>
+        .tag-draggable {
+            cursor: move;
+            user-select: none;
+            position: absolute;
+            z-index: 50;
+            transition: background-color 0.2s;
+        }
+        #canvas-container {
+            position: relative;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            display: inline-block;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 min-h-screen flex flex-col text-white">
+
+    <nav class="bg-indigo-700 text-white p-4 shadow-lg flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <i class="fas fa-crosshairs text-2xl"></i>
+            <h1 class="text-xl font-bold tracking-tight">CH CONTAS <span class="font-light text-indigo-200">| Calibrador RG</span></h1>
+        </div>
+        <div class="flex gap-4">
+            <a href="/gerar-rg" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-sm transition">
+                <i class="fas fa-id-card mr-2"></i>Voltar Pro Emissor
+            </a>
+        </div>
+    </nav>
+
+    <div class="flex-1 flex flex-col lg:flex-row p-4 gap-4 overflow-hidden">
+        
+        <div class="w-full lg:w-80 bg-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-lg border border-slate-700">
+            <div>
+                <h2 class="text-sm font-bold text-indigo-400 uppercase tracking-wider mb-3 border-b border-slate-700 pb-2">Posições Geradas</h2>
+                <p class="text-xs text-slate-400 mb-4">Arraste os marcadores verdes em cima do documento para calibrar as posições.</p>
+                
+                <div id="lista-coordenadas" class="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                    </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-700 mt-4 space-y-2">
+                <div class="bg-slate-900 p-2 rounded text-[11px] text-amber-400 border border-amber-500/30">
+                    <i class="fas fa-info-circle mr-1"></i> O eixo Y é ajustado automaticamente de baixo para cima de acordo com o padrão do PDF-LIB.
+                </div>
+                <button onclick="copiarJson()" class="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-3 rounded-lg transition shadow-md">
+                    <i class="fas fa-copy mr-1"></i> COPIAR CONFIGURAÇÃO JSON
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 bg-slate-950 rounded-xl p-4 flex items-start justify-center overflow-auto border border-slate-800">
+            <div id="canvas-container">
+                <canvas id="pdf-canvas" class="rounded border border-slate-700"></canvas>
+                </div>
+        </div>
+
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        // Definição exata dos seus campos do formulário de RG
+        const campos = [
+            "frente_estado", "frente_secretaria", "frente_nome", "frente_filiacao_pai", 
+            "frente_filiacao_mae", "frente_data_nascimento", "frente_naturalidade", "frente_orgao_expedidor",
+            "verso_rg_numero", "verso_cpf", "verso_data_expedicao", "verso_doc_origem", 
+            "verso_pis_pasep", "verso_identidade_prof"
+        ];
+
+        let coordenadas = {};
+        const container = document.getElementById('canvas-container');
+        let canvasHeight = 0;
+
+        // 1. Carregar e Renderizar o PDF do RG no Fundo
+        // Aponta para o local onde seu backend disponibiliza o arquivo estático
+        pdfjsLib.getDocument('/assets/template_rg.pdf').promise.then(pdf => {
+            return pdf.getPage(1);
+        }).then(page => {
+            const viewport = page.getViewport({ scale: 1.5 }); // Escala ideal para calibração confortável
+            const canvas = document.getElementById('pdf-canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            canvasHeight = viewport.height;
+
+            const renderContext = { canvasContext: context, viewport: viewport };
+            page.render(renderContext).promise.then(() => {
+                inicializarTags();
+            });
+        }).catch(err => {
+            console.error("Erro ao carregar PDF base do RG:", err);
+            alert("Não foi possível carregar o PDF da pasta assets. Certifique-se de que ele está salvo como template_rg.pdf");
+        });
+
+        // 2. Criar as Tags Arrastáveis na tela
+        function inicializarTags() {
+            campos.forEach((campo, index) => {
+                // Posição inicial em cascata para não ficarem todas grudadas no mesmo lugar
+                const inicioX = 40 + (index * 15) % 150;
+                const inicioY = 40 + (index * 25) % 300;
+
+                coordenadas[campo] = { x: inicioX, y: Math.round(canvasHeight - inicioY) };
+
+                // Criar elemento visual da Tag
+                const div = document.createElement('div');
+                div.id = `tag-${campo}`;
+                div.className = "tag-draggable bg-green-500/90 text-slate-950 font-bold text-[10px] px-2 py-1 rounded shadow border border-green-300 backdrop-blur-sm whitespace-nowrap";
+                div.innerText = campo.replace('frente_', 'F: ').replace('verso_', 'V: ').toUpperCase();
+                div.style.left = `${inicioX}px`;
+                div.style.top = `${inicioY}px`;
+
+                container.appendChild(div);
+                tornarArrastavel(div, campo);
+            });
+            atualizarPainelLateral();
+        }
+
+        // 3. Lógica Precisa de Drag and Drop (Mouse)
+        function tornarArrastavel(elemento, campo) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+            elemento.onmousedown = function(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = fecharArraste;
+                document.onmousemove = arrastarElemento;
+                elemento.classList.replace('bg-green-500/90', 'bg-blue-500');
+            };
+
+            function arrastarElemento(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+
+                let novoTop = elemento.offsetTop - pos2;
+                let novoLeft = elemento.offsetLeft - pos1;
+
+                // Limitar movimentação dentro do Canvas do documento
+                if (novoTop >= 0 && novoTop <= canvasHeight - elemento.offsetHeight) {
+                    elemento.style.top = `${novoTop}px`;
+                }
+                if (novoLeft >= 0 && novoLeft <= container.clientWidth - elemento.offsetWidth) {
+                    elemento.style.left = `${novoLeft}px`;
+                }
+
+                // Salva convertendo o eixo Y para o padrão PDF-LIB (que começa de baixo para cima)
+                coordenadas[campo] = {
+                    x: Math.round(novoLeft),
+                    y: Math.round(canvasHeight - novoTop)
+                };
+                atualizarPainelLateral();
+            }
+
+            function fecharArraste() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+                elemento.classList.replace('bg-blue-500', 'bg-green-500/90');
+            }
+        }
+
+        // 4. Renderizar a lista de valores no canto da tela
+        function atualizarPainelLateral() {
+            const lista = document.getElementById('lista-coordenadas');
+            lista.innerHTML = '';
+            
+            Object.keys(coordenadas).forEach(key => {
+                const item = document.createElement('div');
+                item.className = "bg-slate-900 p-2 rounded flex justify-between items-center border border-slate-700 text-xs";
+                
+                const isFrente = key.startsWith('frente_');
+                const labelColor = isFrente ? 'text-blue-400' : 'text-green-400';
+                const cleanName = key.replace('frente_', '').replace('verso_', '').toUpperCase();
+
+                item.innerHTML = `
+                    <span class="font-medium truncate max-w-[120px] ${labelColor}" title="${key}">${cleanName}</span>
+                    <span class="font-mono text-slate-300 bg-slate-950 px-2 py-0.5 rounded text-[11px]">
+                        X: ${coordenadas[key].x} | Y: ${coordenadas[key].y}
+                    </span>
+                `;
+                lista.appendChild(item);
+            });
+        }
+
+        // 5. Copiar Objeto Configurado Pronto para colar no arquivo .template.json
+        function copiarJson() {
+            const configFinal = {
+                template_name: "RG Modelo 2020 Lado a Lado",
+                pdf_reference: "template_rg.pdf",
+                fields: coordenadas
+            };
+            
+            navigator.clipboard.writeText(JSON.stringify(configFinal, null, 2)).then(() => {
+                alert("Configuração copiada com sucesso! Só colar no seu arquivo JSON.");
+            }).catch(err => {
+                alert("Erro ao copiar: " + err);
+            });
+        }
+    </script>
+</body>
+</html>
