@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>Emissor Pro - Emissão de RG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; padding: 16px; }
+        @media (max-width: 768px) {
+            body { padding: 12px; }
+            .form-card { padding: 1rem !important; }
+            .grid-cols-1\.md\\:grid-cols-3 { grid-template-columns: 1fr !important; gap: 1rem !important; }
+            .input-group input { font-size: 14px; padding: 8px 12px; }
+            .input-group label { font-size: 10px; }
+            h1.text-2xl { font-size: 1.25rem; }
+            header { flex-direction: column; gap: 8px; align-items: flex-start; }
+        }
+        .form-card { background: white; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .input-group label { display: block; font-size: 0.7rem; font-weight: 700; color: #4b5563; margin-bottom: 4px; text-transform: uppercase; }
+        .input-group input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.9rem; text-transform: uppercase; }
+        .input-group input:focus { outline: none; border-color: #2563eb; ring: 2px solid #bfdbfe; }
+        button { width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-6 flex justify-between items-center flex-wrap gap-2">
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold text-gray-800">Emissão de RG</h1>
+                <p class="text-xs text-gray-500">Insira os dados do cidadão para gerar a Cédula de Identidade</p>
+            </div>
+            <div class="flex gap-2">
+                <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-[10px] font-bold">Modelo 2020</span>
+                <span class="bg-green-600 text-white px-2 py-1 rounded text-[10px] font-bold">Frente e Verso</span>
+            </div>
+        </header>
+
+        <!-- Formulário enviando para a nova rota exclusiva do RG -->
+        <form action="/api/gerar-rg" method="POST" target="_blank" id="formRg">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                
+                <!-- COLUNA 1: DADOS DA FRENTE -->
+                <div class="form-card p-4 space-y-3">
+                    <h3 class="font-bold text-gray-700 border-b pb-2 text-sm text-blue-600">Frente (Identificação)</h3>
+                    <div class="input-group">
+                        <label>Estado / UF</label>
+                        <input type="text" name="frente_estado" id="frente_estado" value="ESTADO DE SÃO PAULO" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                    <div class="input-group">
+                        <label>Secretaria / Órgão</label>
+                        <input type="text" name="frente_secretaria" id="frente_secretaria" value="SECRETARIA DA SEGURANÇA PÚBLICA" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                    <div class="input-group">
+                        <label>Nome Completo do Titular</label>
+                        <input type="text" name="frente_nome" id="frente_nome" placeholder="LEONARDO VENANCIO" oninput="this.value = this.value.toUpperCase()" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Filiação (Pai)</label>
+                        <input type="text" name="frente_filiacao_pai" id="frente_filiacao_pai" placeholder="JOÃO PEREIRA DE SOUZA" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                    <div class="input-group">
+                        <label>Filiação (Mãe)</label>
+                        <input type="text" name="frente_filiacao_mae" id="frente_filiacao_mae" placeholder="ROSA MARIA DE SOUZA" oninput="this.value = this.value.toUpperCase()" required>
+                    </div>
+                </div>
+
+                <!-- COLUNA 2: CARACTERÍSTICAS E ORIGEM -->
+                <div class="form-card p-4 space-y-3">
+                    <h3 class="font-bold text-gray-700 border-b pb-2 text-sm text-blue-600">Origem & Nascimento</h3>
+                    <div class="input-group">
+                        <label>Data de Nascimento</label>
+                        <input type="text" name="frente_data_nascimento" id="frente_data_nascimento" placeholder="DD/MM/AAAA" maxlength="10" oninput="formatarData(this)" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Naturalidade (Cidade/UF)</label>
+                        <input type="text" name="frente_naturalidade" id="frente_naturalidade" placeholder="S.PAULO - SP" oninput="this.value = this.value.toUpperCase()" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Órgão Expedidor / UF</label>
+                        <input type="text" name="frente_orgao_expedidor" id="frente_orgao_expedidor" value="SSP-SP" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                </div>
+
+                <!-- COLUNA 3: DADOS DO VERSO (DOCUMENTAÇÃO) -->
+                <div class="form-card p-4 space-y-3">
+                    <h3 class="font-bold text-gray-700 border-b pb-2 text-sm text-green-600">Verso (Documentos)</h3>
+                    <div class="input-group">
+                        <label>Registro Geral (RG)</label>
+                        <input type="text" name="verso_rg_numero" id="verso_rg_numero" placeholder="42.548.659-X" oninput="this.value = this.value.toUpperCase()" required>
+                    </div>
+                    <div class="input-group">
+                        <label>CPF</label>
+                        <input type="text" name="verso_cpf" id="verso_cpf" placeholder="000.000.000-00" oninput="formatarCpfCnpj(this)" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Data de Expedição</label>
+                        <input type="text" name="verso_data_expedicao" id="verso_data_expedicao" placeholder="DD/MM/AAAA" maxlength="10" oninput="formatarData(this)" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Registro Civil (Doc. Origem)</label>
+                        <input type="text" name="verso_doc_origem" id="verso_doc_origem" placeholder="SÃO PAULO-SP IPIRANGA CN:LV.A123..." oninput="this.value = this.value.toUpperCase()">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="input-group"><label>PIS/PASEP</label><input type="text" name="verso_pis_pasep" id="verso_pis_pasep" placeholder="OPCIONAL" oninput="this.value = this.value.toUpperCase()"></div>
+                        <div class="input-group"><label>Doc. Profissional</label><input type="text" name="verso_identidade_prof" id="verso_identidade_prof" placeholder="OPCIONAL" oninput="this.value = this.value.toUpperCase()"></div>
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow-md transition-all text-sm mt-2">
+                        <i class="fas fa-file-pdf mr-2"></i>GERAR RG AGORA
+                    </button>
+                </div>
+
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Mantém a função original de formatação de CPF/CNPJ do seu sistema
+        function formatarCpfCnpj(input) {
+            let valor = input.value.replace(/\D/g, '');
+            if (valor.length <= 11) {
+                if (valor.length > 3) valor = valor.replace(/(\d{3})(\d)/, '$1.$2');
+                if (valor.length > 6) valor = valor.replace(/(\d{3})(\d)/, '$1.$2');
+                if (valor.length > 9) valor = valor.replace(/(\d{3})(\d)/, '$1-$2');
+            } else {
+                if (valor.length > 2) valor = valor.replace(/(\d{2})(\d)/, '$1.$2');
+                if (valor.length > 5) valor = valor.replace(/(\d{3})(\d)/, '$1.$2');
+                if (valor.length > 8) valor = valor.replace(/(\d{3})(\d)/, '$1/$2');
+                if (valor.length > 12) valor = valor.replace(/(\d{4})(\d)/, '$1-$2');
+            }
+            input.value = valor;
+        }
+        
+        // Mantém a função original de formatação de datas
+        function formatarData(input) {
+            let valor = input.value.replace(/\D/g, '');
+            if (valor.length > 2) valor = valor.replace(/(\d{2})(\d)/, '$1/$2');
+            if (valor.length > 5) valor = valor.replace(/(\d{2})(\d{4})$/, '$1/$2');
+            input.value = valor;
+        }
+    </script>
+</body>
+</html>
