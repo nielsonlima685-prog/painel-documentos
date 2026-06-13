@@ -8,517 +8,283 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Inter', sans-serif;
-            background: #0a0a0f;
-            color: #fafafa;
-        }
-        .glass-card {
-            background: rgba(24, 24, 27, 0.8);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(63, 63, 70, 0.4);
-            border-radius: 20px;
-            transition: all 0.3s ease;
-        }
-        .glass-card:active {
-            transform: scale(0.98);
-        }
-        .feature-card {
-            cursor: pointer;
-        }
-        
-        /* Menu Hamburguer */
-        .menu-toggle {
-            display: none;
-            background: rgba(24, 24, 27, 0.9);
-            border: 1px solid #3f3f46;
-            border-radius: 12px;
-            padding: 10px 14px;
-            cursor: pointer;
-        }
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 260px;
-            height: 100%;
-            background: #09090b;
-            border-right: 1px solid #27272a;
-            transform: translateX(-100%);
-            transition: transform 0.3s ease;
-            z-index: 1000;
-            overflow-y: auto;
-        }
-        .sidebar.open {
-            transform: translateX(0);
-        }
-        .overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 999;
-        }
-        .overlay.active {
-            display: block;
-        }
-        
-        @media (max-width: 768px) {
-            .menu-toggle {
-                display: block;
-            }
-            main {
-                margin-left: 0 !important;
-                width: 100%;
-            }
-            .grid-cols-1\\.md\\:grid-cols-3 {
-                grid-template-columns: 1fr;
-            }
-            .glass-card {
-                padding: 1rem;
-            }
-            header {
-                padding: 0.75rem 1rem !important;
-            }
-            h1.text-xl {
-                font-size: 1.125rem;
-            }
-        }
-        
-        ::-webkit-scrollbar {
-            width: 4px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #09090b;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #27272a;
-            border-radius: 10px;
-        }
-        
-        .active-link {
-            background: rgba(59, 130, 246, 0.1);
-            color: #3b82f6;
-            border-left: 4px solid #3b82f6;
-        }
-        .sidebar-link {
-            transition: all 0.2s;
-            border-left: 4px solid transparent;
-        }
-        .sidebar-link:hover {
-            background: rgba(39, 39, 42, 0.5);
-        }
-        
-        .btn-recarga {
-            background: linear-gradient(135deg, #00ff88, #00cc66);
-            color: #000;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-        .btn-recarga:hover {
-            transform: scale(1.02);
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 2000;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal.active {
-            display: flex;
-        }
-        .modal-content {
-            background: #1a1a2e;
-            border-radius: 20px;
-            padding: 24px;
-            max-width: 400px;
-            width: 90%;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #fafafa; }
+        .glass-card { background: rgba(24, 24, 27, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(63, 63, 70, 0.4); border-radius: 20px; transition: all 0.3s ease; }
+        .glass-card:active { transform: scale(0.98); }
+        .feature-card { cursor: pointer; }
+        .feature-card:hover { border-color: rgba(99, 102, 241, 0.6); background: rgba(30, 30, 40, 0.9); transform: translateY(-2px); }
+        .sidebar-link:hover, .sidebar-link.active { background: #18181b; color: #6366f1; border-left: 4px solid #6366f1; }
     </style>
 </head>
-<body>
-    <!-- Modal de Recarga -->
-    <div id="modal-recarga" class="modal">
-        <div class="modal-content">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold">💰 Recarregar Saldo</h2>
-                <button onclick="fecharModal()" class="text-zinc-500 hover:text-white text-2xl">&times;</button>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm mb-2">Valor (mínimo R$ 10)</label>
-                <input type="number" id="valor-recarga" min="10" step="10" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white">
-            </div>
-            <div id="pix-info" class="hidden mb-4 text-center">
-                <p class="mb-2">📱 Escaneie o QR Code abaixo:</p>
-                <img id="qr-code-img" src="" class="w-48 h-48 mx-auto mb-4">
-                <p class="text-sm">Código PIX:</p>
-                <code id="pix-code" class="bg-zinc-900 p-2 rounded block text-xs break-all"></code>
-                <button onclick="confirmarRecarga()" class="btn-recarga w-full mt-4 py-2 rounded-lg">✅ Já paguei</button>
-            </div>
-            <button id="btn-gerar-pix" onclick="gerarPixRecarga()" class="btn-recarga w-full py-2 rounded-lg">Gerar PIX</button>
-            <button onclick="fecharModal()" class="w-full mt-2 py-2 rounded-lg bg-zinc-800">Cancelar</button>
-        </div>
-    </div>
+<body class="min-h-screen flex flex-col md:flex-row">
 
-    <!-- Overlay -->
-    <div id="overlay" class="overlay" onclick="closeMenu()"></div>
-    
-    <!-- Sidebar -->
-    <aside id="sidebar" class="sidebar">
-        <div class="p-5">
-            <div class="flex items-center justify-between mb-6">
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-store text-white text-sm"></i>
-                    </div>
-                    <span class="text-xl font-bold">CH<span class="text-blue-500">Vendas</span></span>
-                </div>
-                <button onclick="closeMenu()" class="text-zinc-500 hover:text-white md:hidden">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
+    <aside class="w-full md:w-64 bg(#101014) border-b md:border-b-0 md:border-r border-zinc-800 flex flex-col p-4 shrink-0">
+        <div class="flex items-center gap-3 px-4 py-3 mb-6 border-b border-zinc-800">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/30">CH</div>
+            <div>
+                <h1 class="text-sm font-bold tracking-tight">CH VENDAS</h1>
+                <p class="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Sistema Ativo
+                </p>
             </div>
-            <nav class="space-y-1">
-                <a href="/home" class="active-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium">
-                    <i class="fas fa-th-large w-5"></i> Dashboard
+        </div>
+
+        <nav class="flex-1 space-y-1">
+            <div class="text-[10px] font-bold text-zinc-500 uppercase px-4 mb-2">Principal</div>
+            <a href="/home" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 transition-all">
+                <i class="fas fa-chart-pie w-5"></i> Dashboard
+            </a>
+
+            <div class="text-[10px] font-bold text-zinc-500 uppercase px-4 mt-6 mb-2">Ferramentas</div>
+            <a href="/emissao" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 transition-all">
+                <i class="fas fa-file-pdf w-5"></i> Emissão CRLV
+            </a>
+            <a href="/gerar-rg" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 transition-all">
+                <i class="fas fa-id-card w-5"></i> Emissão RG
+            </a>
+            <a href="/consultador" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 transition-all">
+                <i class="fas fa-search w-5"></i> Consultador API
+            </a>
+
+            <div id="admin-section-menu" class="hidden">
+                <div class="text-[10px] font-bold text-zinc-500 uppercase px-4 mt-6 mb-2">Administração</div>
+                <a href="/usuarios" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 transition-all">
+                    <i class="fas fa-users w-5"></i> Utilizadores
                 </a>
-                <div class="text-[10px] font-bold text-zinc-500 uppercase px-4 mt-6 mb-2">Ferramentas</div>
-                <a href="/emissao" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
-                    <i class="fas fa-file-pdf w-5"></i> Emissão CRLV
+                <a href="/calibrar" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 transition-all">
+                    <i class="fas fa-crosshairs w-5"></i> Calibrador CRLV
                 </a>
-                <a href="/consultador" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
-                    <i class="fas fa-shield-alt w-5"></i> Consultador
+                <a href="/calibrar-rg" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 transition-all">
+                    <i class="fas fa-vector-square w-5"></i> Calibrador RG
                 </a>
-                <a id="sidebar-calibrar" href="/calibrar" class="hidden items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
-                    <i class="fas fa-crosshairs w-5"></i> Calibrador PDF
+                <a href="/bot-admin" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 transition-all">
+                    <i class="fas fa-robot w-5"></i> Bot Telegram
                 </a>
-                <div id="admin-menu" class="hidden">
-                    <div class="text-[10px] font-bold text-red-500/80 uppercase px-4 mt-6 mb-2">Administração</div>
-                    <a href="/usuarios" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
-                        <i class="fas fa-user-shield w-5"></i> Gerenciar Usuários
-                    </a>
-                    <a href="/bot-admin" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-400 hover:bg-zinc-800 transition-all">
-                        <i class="fas fa-chart-line w-5"></i> Admin Bot
-                    </a>
-                </div>
-            </nav>
-            <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-zinc-800">
-                <button onclick="logout()" class="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-sm font-medium text-red-400 hover:bg-red-400/10 transition-all">
-                    <i class="fas fa-sign-out-alt w-5"></i> Sair
-                </button>
             </div>
+        </nav>
+
+        <div class="mt-auto pt-4 border-t border-zinc-800 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs border border-zinc-700" id="user-avatar"><i class="fas fa-user"></i></div>
+                <div class="truncate max-w-[120px]">
+                    <p class="text-xs font-bold text-zinc-200 truncate" id="user-display-name">Carregando...</p>
+                    <p class="text-[9px] text-zinc-500" id="user-role">Cliente</p>
+                </div>
+            </div>
+            <button onclick="logout()" class="text-zinc-500 hover:text-red-400 text-sm transition-all"><i class="fas fa-sign-out-alt"></i></button>
         </div>
     </aside>
 
-    <!-- Main Content -->
-    <main class="min-h-screen">
-        <header class="h-16 flex items-center justify-between px-4 md:px-8 border-b border-zinc-800 bg-[#09090b]/80 sticky top-0 z-50">
-            <div class="flex items-center gap-3">
-                <button class="menu-toggle" onclick="toggleMenu()">
-                    <i class="fas fa-bars text-white text-xl"></i>
-                </button>
-                <div>
-                    <h1 class="text-base md:text-xl font-semibold">Olá, <span id="user-name">Carregando...</span></h1>
-                    <p class="text-[10px] md:text-xs text-zinc-500 hidden md:block">Bem-vindo ao seu painel</p>
-                </div>
+    <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <div>
+                <h2 class="text-2xl font-bold md:text-3xl">Painel de Controlo</h2>
+                <p class="text-zinc-500 text-xs md:text-sm">Bem-vindo de volta ao ecossistema CH Vendas</p>
             </div>
-            <div class="flex items-center gap-3">
-                <p id="user-role" class="text-[10px] md:text-xs text-zinc-500 bg-zinc-900 px-2 py-1 rounded-full">Carregando...</p>
-                <img id="user-avatar" src="" alt="Avatar" class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-800 border border-zinc-700">
+            
+            <div class="glass-card px-4 py-3 flex items-center gap-4 w-full sm:w-auto">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400"><i class="fas fa-wallet"></i></div>
+                <div>
+                    <p class="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Teu Saldo</p>
+                    <p class="text-lg font-black text-emerald-400" id="user-saldo">R$ 0,00</p>
+                </div>
+                <button onclick="abrirModalRecarga()" class="ml-auto sm:ml-4 bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all">+ Recarregar</button>
             </div>
         </header>
 
-        <div class="p-4 md:p-8">
-            <div class="max-w-6xl mx-auto">
-                
-                <!-- Card de Saldo -->
-                <div class="glass-card p-4 md:p-6 mb-8">
-                    <div class="flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div>
-                            <h3 class="text-zinc-500 text-sm uppercase font-bold">💰 SEU SALDO</h3>
-                            <p class="text-3xl md:text-4xl font-bold text-green-400" id="user-saldo">R$ 0,00</p>
-                        </div>
-                        <button onclick="abrirModalRecarga()" class="btn-recarga px-6 py-3 rounded-xl text-lg font-bold">
-                            + Recarregar Saldo
-                        </button>
-                    </div>
+        <h4 class="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-4">Ferramentas Disponíveis</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8">
+            
+            <div onclick="window.location.href='/emissao'" class="glass-card p-4 md:p-6 feature-card">
+                <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-xl mb-4"><i class="fas fa-car text-indigo-400"></i></div>
+                <h3 class="font-bold text-lg mb-1">Emissão CRLV</h3>
+                <p class="text-zinc-500 text-xs md:text-sm">Gere o documento automotivo CRLV-e completo atualizado.</p>
+                <div class="mt-4 pt-4 border-t border-zinc-800 flex items-center justify-between text-xs">
+                    <span class="text-zinc-400">Custo por emissão:</span>
+                    <span class="text-indigo-400 font-bold">R$ 40,00</span>
                 </div>
+            </div>
 
-                <!-- Status Cards -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-12">
-                    <div class="glass-card p-4 md:p-5 flex items-center gap-4">
-                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center text-lg md:text-xl">
-                            <i class="fas fa-calendar-alt"></i>
-                        </div>
-                        <div>
-                            <p class="text-zinc-500 text-[10px] md:text-xs uppercase font-bold">Expira em</p>
-                            <p id="expiry-date" class="text-base md:text-lg font-semibold">--/--/----</p>
-                        </div>
-                    </div>
-                    <div class="glass-card p-4 md:p-5 flex items-center gap-4">
-                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center text-lg md:text-xl">
-                            <i class="fas fa-chart-line"></i>
-                        </div>
-                        <div>
-                            <p class="text-zinc-500 text-[10px] md:text-xs uppercase font-bold">Consultas</p>
-                            <p class="text-base md:text-lg font-semibold" id="total-consultas">0</p>
-                        </div>
-                    </div>
-                    <div class="glass-card p-4 md:p-5 flex items-center gap-4">
-                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-green-500/10 text-green-500 flex items-center justify-center text-lg md:text-xl">
-                            <i class="fas fa-shield-alt"></i>
-                        </div>
-                        <div>
-                            <p class="text-zinc-500 text-[10px] md:text-xs uppercase font-bold">Status</p>
-                            <p class="text-sm md:text-base font-semibold text-green-400">Ativo</p>
-                        </div>
-                    </div>
+            <div onclick="window.location.href='/gerar-rg'" class="glass-card p-4 md:p-6 feature-card">
+                <div class="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-xl mb-4"><i class="fas fa-id-card text-blue-400"></i></div>
+                <h3 class="font-bold text-lg mb-1">Emissão RG</h3>
+                <p class="text-zinc-500 text-xs md:text-sm">Gere Cédula de Identidade RG Modelo 2020 Frente/Verso.</p>
+                <div class="mt-4 pt-4 border-t border-zinc-800 flex items-center justify-between text-xs">
+                    <span class="text-zinc-400">Custo por emissão:</span>
+                    <span class="text-blue-400 font-bold">R$ 30,00</span>
                 </div>
+            </div>
 
-                <!-- Ferramentas Disponíveis -->
-                <h2 class="text-zinc-400 text-xs md:text-sm font-semibold uppercase tracking-wider mb-4 md:mb-6">Ferramentas Disponíveis</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                    
-                    <!-- Card Emissão CRLV -->
-                    <div onclick="window.location.href='/emissao'" class="glass-card p-4 md:p-6 feature-card">
-                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
-                            <i class="fas fa-file-pdf text-emerald-400"></i>
-                        </div>
-                        <h3 class="font-bold text-base md:text-xl mb-1">Emissão CRLV</h3>
-                        <p class="text-zinc-500 text-xs md:text-sm">Gere documentos CRLV-e em PDF</p>
-                        <div class="mt-3 flex items-center justify-between">
-                            <span class="text-emerald-400 text-xs md:text-sm">R$ 40,00</span>
-                            <span class="text-emerald-400 text-xs md:text-sm">Acessar →</span>
-                        </div>
-                    </div>
-
-                    <!-- Card Consultador -->
-                    <div onclick="window.location.href='/consultador'" class="glass-card p-4 md:p-6 feature-card">
-                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
-                            <i class="fas fa-shield-alt text-blue-400"></i>
-                        </div>
-                        <h3 class="font-bold text-base md:text-xl mb-1">Consultador</h3>
-                        <p class="text-zinc-500 text-xs md:text-sm">Consulta de antecedentes criminais</p>
-                        <div class="mt-3 flex items-center justify-between">
-                            <span class="text-blue-400 text-xs md:text-sm">R$ 10,00</span>
-                            <span class="text-blue-400 text-xs md:text-sm">Acessar →</span>
-                        </div>
-                    </div>
-
-                    <!-- Card Calibrador (SÓ ADMIN) -->
-                    <div id="calibrar-card" class="hidden glass-card p-4 md:p-6 feature-card" onclick="window.location.href='/calibrar'">
-                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
-                            <i class="fas fa-crosshairs text-purple-400"></i>
-                        </div>
-                        <h3 class="font-bold text-base md:text-xl mb-1">Calibrador PDF</h3>
-                        <p class="text-zinc-500 text-xs md:text-sm">Ajuste as posições dos campos</p>
-                        <div class="mt-3 flex items-center text-purple-400 text-xs md:text-sm">
-                            <span>Acessar →</span>
-                        </div>
-                    </div>
-
-                    <!-- Card Admin Bot (SÓ ADMIN) -->
-                    <div id="admin-bot-card" class="hidden glass-card p-4 md:p-6 feature-card" onclick="window.location.href='/bot-admin'">
-                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
-                            <i class="fas fa-chart-line text-indigo-400"></i>
-                        </div>
-                        <h3 class="font-bold text-base md:text-xl mb-1">Admin Bot</h3>
-                        <p class="text-zinc-500 text-xs md:text-sm">Estatísticas e gestão do bot</p>
-                        <div class="mt-3 flex items-center text-indigo-400 text-xs md:text-sm">
-                            <span>Acessar →</span>
-                        </div>
-                    </div>
-
-                    <!-- Card Admin (SÓ ADMIN) -->
-                    <div id="admin-card" class="hidden glass-card p-4 md:p-6 feature-card" onclick="window.location.href='/usuarios'">
-                        <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-red-500/10 flex items-center justify-center text-2xl md:text-3xl mb-3 md:mb-4">
-                            <i class="fas fa-user-shield text-red-400"></i>
-                        </div>
-                        <h3 class="font-bold text-base md:text-xl mb-1">Gerenciar Usuários</h3>
-                        <p class="text-zinc-500 text-xs md:text-sm">Controle de acesso do sistema</p>
-                        <div class="mt-3 flex items-center text-red-400 text-xs md:text-sm">
-                            <span>Acessar →</span>
-                        </div>
-                    </div>
+            <div onclick="window.location.href='/consultador'" class="glass-card p-4 md:p-6 feature-card">
+                <div class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-xl mb-4"><i class="fas fa-search text-purple-400"></i></div>
+                <h3 class="font-bold text-lg mb-1">Consultador API</h3>
+                <p class="text-zinc-500 text-xs md:text-sm">Puxe dados cadastrais completos estruturados de forma direta.</p>
+                <div class="mt-4 pt-4 border-t border-zinc-800 flex items-center justify-between text-xs">
+                    <span class="text-zinc-400">Custo por busca:</span>
+                    <span class="text-purple-400 font-bold">R$ 1,50</span>
                 </div>
+            </div>
+        </div>
 
-                <!-- Últimas Transações -->
-                <div class="mt-8 glass-card p-4 md:p-6">
-                    <h3 class="font-bold text-lg mb-4">📋 Últimas Transações</h3>
-                    <div id="extrato-list" class="space-y-2">
-                        <p class="text-zinc-500 text-center py-4">Carregando...</p>
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div class="mt-8 pt-8 border-t border-zinc-800 text-center">
-                    <p class="text-[10px] text-zinc-600 uppercase tracking-widest">
-                        CH VENDAS &copy; 2026 - SISTEMA PROFISSIONAL
-                    </p>
-                </div>
+        <div class="glass-card p-4 md:p-6">
+            <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i class="fas fa-history text-zinc-500"></i> Extrato de Operações</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-zinc-800 text-zinc-500 text-xs uppercase tracking-wider">
+                            <th class="pb-3 font-semibold">Descrição</th>
+                            <th class="pb-3 font-semibold">Data</th>
+                            <th class="pb-3 font-semibold text-right">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody id="extrato-corpo" class="text-xs divide-y divide-zinc-800/50">
+                        </tbody>
+                </table>
             </div>
         </div>
     </main>
 
+    <div id="modal-recarga" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-card w-full max-w-md p-6 relative">
+            <button onclick="fecharModal()" class="absolute top-4 right-4 text-zinc-500 hover:text-zinc-200"><i class="fas fa-times"></i></button>
+            <h3 class="text-xl font-bold mb-2">Adicionar Saldo</h3>
+            <p class="text-zinc-500 text-xs mb-6">Insira o valor que deseja recarregar via PIX dinâmico automático.</p>
+            
+            <div id="form-recarga-valores" class="space-y-4">
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="setValorRecarga(20)" class="bg-zinc-800 hover:bg-zinc-700 py-2.5 rounded-xl font-bold text-xs transition-all">R$ 20</button>
+                    <button onclick="setValorRecarga(50)" class="bg-zinc-800 hover:bg-zinc-700 py-2.5 rounded-xl font-bold text-xs transition-all">R$ 50</button>
+                    <button onclick="setValorRecarga(100)" class="bg-zinc-800 hover:bg-zinc-700 py-2.5 rounded-xl font-bold text-xs transition-all">R$ 100</button>
+                </div>
+                <div class="relative">
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-sm">R$</span>
+                    <input type="number" id="input-valor-custom" placeholder="Outro Valor" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-sm font-bold focus:outline-none focus:border-indigo-500 transition-all">
+                </div>
+                <button id="btn-gerar-pix" onclick="gerarPix()" class="w-full bg-indigo-600 hover:bg-indigo-700 py-3 rounded-xl font-bold text-sm shadow-lg shadow-indigo-600/20 transition-all">Gerar PIX</button>
+            </div>
+
+            <div id="pix-info" class="hidden space-y-4 flex flex-col items-center py-4">
+                <div class="bg-white p-3 rounded-2xl shadow-xl"><img id="pix-qr" src="" alt="QR Code" class="w-48 h-48"></div>
+                <p class="text-xs text-center text-zinc-400 font-medium max-w-xs">Copie o código abaixo ou escaneie o QR Code no aplicativo do seu banco.</p>
+                <div class="w-full flex gap-2">
+                    <input type="text" id="pix-copia-cola" readonly class="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs font-mono text-zinc-400 focus:outline-none">
+                    <button onclick="copiarPix()" class="bg-zinc-800 hover:bg-zinc-700 px-4 rounded-xl text-xs font-bold"><i class="fas fa-copy"></i></button>
+                </div>
+                <button onclick="confirmarRecarga()" class="w-full bg-emerald-600 hover:bg-emerald-700 py-3 rounded-xl font-bold text-sm transition-all"><i class="fas fa-check-circle mr-1"></i> Já Realizei o Pagamento</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        let userData = null;
         let transacaoPendente = null;
-        
-        function toggleMenu() {
-            document.getElementById('sidebar').classList.toggle('open');
-            document.getElementById('overlay').classList.toggle('active');
-        }
-        
-        function closeMenu() {
-            document.getElementById('sidebar').classList.remove('open');
-            document.getElementById('overlay').classList.remove('active');
-        }
 
         async function loadSession() {
             try {
-                const response = await fetch('/api/session');
-                if (!response.ok) throw new Error('Não autenticado');
-                userData = await response.json();
+                const res = await fetch('/api/user-info');
+                if (!res.ok) return window.location.href = '/login.html';
+                const user = await res.json();
                 
-                document.getElementById('user-name').innerText = userData.nome || userData.user;
-                document.getElementById('user-role').innerHTML = userData.plano;
-                document.getElementById('expiry-date').innerText = userData.expira.split(' ')[0];
-                document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.nome || userData.user)}&background=3b82f6&color=fff&size=64`;
-                document.getElementById('user-saldo').innerText = `R$ ${(userData.saldo || 0).toFixed(2)}`;
+                document.getElementById('user-display-name').innerText = user.username.toUpperCase();
+                document.getElementById('user-saldo').innerText = `R$ ${user.saldo.toFixed(2)}`;
                 
-                if(userData.role === 'admin') {
-                    document.getElementById('admin-menu').classList.remove('hidden');
-                    document.getElementById('admin-card').classList.remove('hidden');
-                    document.getElementById('admin-bot-card').classList.remove('hidden');
-                    document.getElementById('calibrar-card').classList.remove('hidden');
-                    document.getElementById('sidebar-calibrar').classList.remove('hidden');
+                if (user.role === 'admin') {
+                    document.getElementById('user-role').innerText = 'Administrador';
+                    document.getElementById('user-role').className = 'text-[9px] text-amber-400 font-bold';
+                    document.getElementById('admin-section-menu').classList.remove('hidden');
                 }
-                
                 carregarExtrato();
-            } catch (error) {
-                console.error('Erro:', error);
-                window.location.href = '/login.html';
-            }
+            } catch (err) { window.location.href = '/login.html'; }
         }
-        
+
         async function carregarExtrato() {
-            try {
-                const response = await fetch('/api/extrato');
-                const data = await response.json();
-                const transacoes = data.transacoes || [];
-                
-                const extratoDiv = document.getElementById('extrato-list');
-                
-                if (transacoes.length === 0) {
-                    extratoDiv.innerHTML = '<p class="text-zinc-500 text-center py-4">Nenhuma transação ainda</p>';
-                    return;
-                }
-                
-                extratoDiv.innerHTML = transacoes.slice(0, 10).map(t => `
-                    <div class="flex justify-between items-center p-3 bg-zinc-800/50 rounded-lg">
-                        <div>
-                            <p class="font-medium">${t.servico}</p>
-                            <p class="text-xs text-zinc-500">${new Date(t.data).toLocaleString()}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="font-bold ${t.tipo === 'entrada' ? 'text-green-400' : 'text-red-400'}">
-                                ${t.tipo === 'entrada' ? '+' : '-'} R$ ${t.valor.toFixed(2)}
-                            </p>
-                            <p class="text-xs text-zinc-500">Saldo: R$ ${t.saldo_apos.toFixed(2)}</p>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (err) {
-                console.error('Erro ao carregar extrato:', err);
-            }
-        }
-        
-        function abrirModalRecarga() {
-            document.getElementById('modal-recarga').classList.add('active');
-            document.getElementById('pix-info').classList.add('hidden');
-            document.getElementById('valor-recarga').value = '';
-            document.getElementById('btn-gerar-pix').classList.remove('hidden');
-        }
-        
-        function fecharModal() {
-            document.getElementById('modal-recarga').classList.remove('active');
-            transacaoPendente = null;
-        }
-        
-        async function gerarPixRecarga() {
-            const valor = parseFloat(document.getElementById('valor-recarga').value);
+            const res = await fetch('/api/extrato');
+            if (!res.ok) return;
+            const data = await res.json();
+            const corpo = document.getElementById('extrato-corpo');
+            corpo.innerHTML = '';
             
-            if (isNaN(valor) || valor < 10) {
-                alert('Valor mínimo de R$ 10,00');
+            if(data.length === 0) {
+                corpo.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-zinc-600">Nenhuma transação efetuada.</td></tr>`;
                 return;
             }
+
+            data.reverse().forEach(t => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-zinc-800/30 hover:bg-zinc-900/30 transition-all";
+                const isPositive = t.tipo === 'recarga';
+                tr.innerHTML = `
+                    <td class="py-3 font-medium text-zinc-300">${t.descricao}</td>
+                    <td class="py-3 text-zinc-500">${new Date(t.data).toLocaleDateString('pt-BR')}</td>
+                    <td class="py-3 text-right font-bold ${isPositive ? 'text-emerald-400':'text-zinc-400'}">${isPositive ? '+':'-'} R$ ${t.valor.toFixed(2)}</td>
+                `;
+                corpo.appendChild(tr);
+            });
+        }
+
+        function abrirModalRecarga() { document.getElementById('modal-recarga').classList.remove('hidden'); }
+        function fecharModal() {
+            document.getElementById('modal-recarga').classList.add('hidden');
+            document.getElementById('form-recarga-valores').classList.remove('hidden');
+            document.getElementById('pix-info').classList.add('hidden');
+            document.getElementById('input-valor-custom').value = '';
+            transacaoPendente = null;
+        }
+
+        function setValorRecarga(val) { document.getElementById('input-valor-custom').value = val; }
+
+        async function gerarPix() {
+            const valor = parseFloat(document.getElementById('input-valor-custom').value);
+            if (!valor || valor <= 0) return alert('Insira um valor de recarga válido.');
             
-            document.getElementById('btn-gerar-pix').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+            document.getElementById('btn-gerar-pix').innerHTML = '<i class="fas fa-spinner animate-spin"></i> Processando...';
             document.getElementById('btn-gerar-pix').disabled = true;
-            
+
             try {
-                const response = await fetch('/api/gerar-recarga', {
+                const response = await fetch('/api/recarga', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ valor: valor })
+                    body: JSON.stringify({ valor })
                 });
-                
                 const data = await response.json();
                 
                 if (data.success) {
-                    transacaoPendente = { transactionId: data.transactionId, valor: valor };
-                    document.getElementById('qr-code-img').src = `data:image/png;base64,${data.qrCode}`;
-                    document.getElementById('pix-code').innerText = data.pixCode;
+                    transacaoPendente = { paymentId: data.paymentId, valor: valor };
+                    document.getElementById('pix-qr').src = `data:image/png;base64,${data.qrCodeBase64}`;
+                    document.getElementById('pix-copia-cola').value = data.qrCode;
+                    document.getElementById('form-recarga-valores').classList.add('hidden');
                     document.getElementById('pix-info').classList.remove('hidden');
-                    document.getElementById('btn-gerar-pix').classList.add('hidden');
-                } else {
-                    alert('Erro: ' + data.error);
-                }
-            } catch (err) {
-                alert('Erro ao gerar PIX: ' + err.message);
-            }
+                } else { alert('Erro: ' + data.error); }
+            } catch (err) { alert('Erro ao gerar PIX.'); }
             
             document.getElementById('btn-gerar-pix').innerHTML = 'Gerar PIX';
             document.getElementById('btn-gerar-pix').disabled = false;
         }
-        
+
+        function copiarPix() {
+            const inp = document.getElementById('pix-copia-cola');
+            inp.select();
+            document.execCommand('copy');
+            alert('Código PIX Copiado!');
+        }
+
         async function confirmarRecarga() {
             if (!transacaoPendente) return;
-            
             const response = await fetch('/api/confirmar-recarga', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(transacaoPendente)
             });
-            
             const data = await response.json();
-            
             if (data.success) {
                 alert(`✅ Recarga de R$ ${transacaoPendente.valor.toFixed(2)} realizada com sucesso!`);
                 document.getElementById('user-saldo').innerText = `R$ ${data.saldo.toFixed(2)}`;
                 fecharModal();
                 carregarExtrato();
-            } else {
-                alert('⚠️ Pagamento ainda não confirmado. Aguarde alguns segundos e tente novamente.');
-            }
+            } else { alert('⚠️ Pagamento pendente. Aguarde alguns instantes e tente novamente.'); }
         }
 
-        function logout() {
-            window.location.href = '/logout';
-        }
-
+        function logout() { window.location.href = '/logout'; }
         loadSession();
     </script>
 </body>
