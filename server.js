@@ -9,16 +9,24 @@ const { MercadoPagoConfig, Payment } = require('mercadopago');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Habilitar se estiver atrás de um proxy reverso como o Render para os cookies funcionarem 100%
+app.set('trust proxy', 1);
+
 // ==================== CONFIGURAÇÕES ====================
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static('public'));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'ch-contas-secret-key',
-    resave: false,
-    saveUninitialized: true,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 }
+    resave: fashion = false,
+    saveUninitialized: false, // Alterado para false para evitar criar sessões vazias
+    cookie: { 
+        maxAge: 24 * 60 * 60 * 1000,
+        secure: false, // Deixe false se não estiver usando HTTPS estrito localmente, o Render gerencia isso
+        httpOnly: true
+    }
 }));
 
 // Configurar Mercado Pago
@@ -31,7 +39,7 @@ const payment = new Payment(client);
 const USERS_FILE = path.join(__dirname, 'data', 'users.json');
 
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
-    fs.mkdirSync(path.join(__dirname, 'data'));
+    fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
 }
 
 const defaultUsers = [
@@ -43,7 +51,7 @@ const defaultUsers = [
         nome: 'Carlos Henrique', 
         plano: 'MASTER PREMIUM', 
         createdAt: new Date().toISOString(), 
-        saldo: 100,  // Apenas admin tem saldo inicial
+        saldo: 100,
         transacoes: []
     }
 ];
@@ -60,6 +68,9 @@ function saveUserData(users) {
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
+// Inicializa os usuários na primeira execução
+loadUserData();
+
 // ==================== FUNÇÕES DE CARTEIRA ====================
 async function debitarSaldo(userId, valor, servico, sessionUser = null) {
     const users = loadUserData();
@@ -69,10 +80,8 @@ async function debitarSaldo(userId, valor, servico, sessionUser = null) {
         throw new Error('Usuário não encontrado');
     }
 
-    // REFORMULADO: Se o usuário logado for você (admin 'Newbr47'), o saldo não é cobrado
     if (users[userIndex].user === 'Newbr47' || sessionUser === 'Newbr47' || users[userIndex].role === 'admin') {
         console.log(`[BYPASS ADM] Ignorando cobrança de R$ ${valor} para o administrador.`);
-        
         if (!users[userIndex].transacoes) users[userIndex].transacoes = [];
         users[userIndex].transacoes.unshift({
             tipo: 'saida',
@@ -86,13 +95,11 @@ async function debitarSaldo(userId, valor, servico, sessionUser = null) {
     }
     
     const saldoAtual = users[userIndex].saldo || 0;
-    
     if (saldoAtual < valor) {
         throw new Error(`Saldo insuficiente. Necessário R$ ${valor.toFixed(2)}`);
     }
     
     users[userIndex].saldo = saldoAtual - valor;
-    
     if (!users[userIndex].transacoes) users[userIndex].transacoes = [];
     users[userIndex].transacoes.unshift({
         tipo: 'saida',
@@ -115,7 +122,6 @@ async function creditarSaldo(userId, valor, descricao) {
     }
     
     users[userIndex].saldo = (users[userIndex].saldo || 0) + valor;
-    
     if (!users[userIndex].transacoes) users[userIndex].transacoes = [];
     users[userIndex].transacoes.unshift({
         tipo: 'entrada',
@@ -129,18 +135,22 @@ async function creditarSaldo(userId, valor, descricao) {
     return true;
 }
 
-// ==================== MIDDLEWARES ====================
+// ==================== MIDDLEWARES DE VALIDAÇÃO ====================
 const requireAuth = (req, res, next) => {
-    if (req.session.user) {
-        next();
+    if (req.session && req.session.user) {
+        return next();
     } else {
+        // Se a chamada for de API interna, responde com JSON em vez de redirecionar para não quebrar o frontend
+        if (req.xhr || req.path.startsWith('/api/')) {
+            return res.status(401).json({ error: 'Sessão expirada' });
+        }
         res.redirect('/login.html');
     }
 };
 
 const requireAdmin = (req, res, next) => {
-    if (req.session.role === 'admin' || req.session.user === 'Newbr47') {
-        next();
+    if (req.session && (req.session.role === 'admin' || req.session.user === 'Newbr47')) {
+        return next();
     } else {
         res.status(403).send(`
             <!DOCTYPE html>
@@ -157,19 +167,28 @@ const requireAdmin = (req, res, next) => {
     }
 };
 
-// ==================== ROTAS PÚBLICAS ====================
+// ==================== ROTAS PÚBLICAS E AUTENTICAÇÃO ====================
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
     const users = loadUserData();
     const usuarioValido = users.find(u => u.user === username && u.pass === password);
     
     if (usuarioValido) {
+        // Guardando dados estritos na sessão
         req.session.user = usuarioValido.user;
         req.session.nome = usuarioValido.nome;
         req.session.role = usuarioValido.role;
         req.session.plano = usuarioValido.plano;
         req.session.userId = usuarioValido.id;
-        res.redirect('/home');
+        
+        // Salva explicitamente antes de redirecionar para garantir sincronia no Render
+        req.session.save((err) => {
+            if (err) {
+                console.error("Erro ao salvar sessão:", err);
+                return res.status(500).send("Erro interno ao processar login.");
+            }
+            res.redirect('/home');
+        });
     } else {
         res.send(`
             <!DOCTYPE html>
@@ -187,11 +206,24 @@ app.post('/login', (req, res) => {
 });
 
 app.get('/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/login.html');
+    req.session.destroy(() => {
+        res.redirect('/login.html');
+    });
 });
 
-// ==================== API DE SESSÃO ====================
+// ==================== API DE SESSÃO CORRIGIDA ====================
+// Rota unificada para bater com os seus diferentes arquivos frontend (home.html usa /api/user-info ou /api/session)
+app.get('/api/user-info', requireAuth, (req, res) => {
+    const users = loadUserData();
+    const user = users.find(u => u.user === req.session.user);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    res.json({
+        username: user.user,
+        saldo: user.role === 'admin' ? 999999 : (user.saldo || 0),
+        role: user.role
+    });
+});
+
 app.get('/api/session', requireAuth, (req, res) => {
     const users = loadUserData();
     const user = users.find(u => u.user === req.session.user);
@@ -201,7 +233,7 @@ app.get('/api/session', requireAuth, (req, res) => {
         role: req.session.role,
         plano: req.session.plano,
         userId: req.session.userId,
-        saldo: req.session.role === 'admin' ? 999999 : (user?.saldo || 0), // Mostra saldo infinito visual para o Admin
+        saldo: req.session.role === 'admin' ? 999999 : (user?.saldo || 0),
         expira: "08/05/2026 01:48:55"
     });
 });
@@ -216,7 +248,7 @@ app.get('/api/saldo', requireAuth, (req, res) => {
 app.get('/api/extrato', requireAuth, (req, res) => {
     const users = loadUserData();
     const user = users.find(u => u.id === req.session.userId);
-    res.json({ transacoes: user?.transacoes || [] });
+    res.json(user ? (user.transacoes || []) : []);
 });
 
 // Gerar PIX para recarga
@@ -284,10 +316,8 @@ app.post('/api/consultar-antecedentes', requireAuth, async (req, res) => {
     }
     
     try {
-        // Passa o nome do usuário logado para verificar o bypass
         await debitarSaldo(userId, valorServico, 'Consulta de antecedentes', req.session.user);
         
-        // Simular consulta (substituir por API real depois)
         const resultado = {
             status: 'aprovado',
             mensagem: '✅ Nada consta na base de dados. Motorista aprovado!',
@@ -296,11 +326,7 @@ app.post('/api/consultar-antecedentes', requireAuth, async (req, res) => {
         
         res.json(resultado);
     } catch (err) {
-        if (err.message.includes('Saldo insuficiente')) {
-            res.status(400).json({ error: err.message });
-        } else {
-            res.status(500).json({ error: err.message });
-        }
+        res.status(400).json({ error: err.message });
     }
 });
 
@@ -321,7 +347,6 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         const userId = req.session.userId;
         const valorServico = 40;
         
-        // Passa o nome do usuário logado para verificar o bypass
         await debitarSaldo(userId, valorServico, 'Emissão CRLV', req.session.user);
         
         const tipo = dados.tipo_template || dados.tipo_veiculo || 'carro';
@@ -331,12 +356,8 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         const pdfPath = path.join(__dirname, 'assets', templatePDFName);
         const coordsPath = path.join(__dirname, 'assets', coordsJSONName);
 
-        if (!fs.existsSync(pdfPath)) {
-            return res.status(404).send(`Arquivo PDF base não encontrado.`);
-        }
-        if (!fs.existsSync(coordsPath)) {
-            return res.status(404).send(`Template de coordenadas não encontrado.`);
-        }
+        if (!fs.existsSync(pdfPath)) return res.status(404).send(`Arquivo PDF base não encontrado.`);
+        if (!fs.existsSync(coordsPath)) return res.status(404).send(`Template de coordenadas não encontrado.`);
 
         const existingPdfBytes = fs.readFileSync(pdfPath);
         const pdfDoc = await PDFDocument.load(existingPdfBytes);
@@ -347,15 +368,11 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         Object.keys(coords).forEach(key => {
             const pos = coords[key];
             if (pos.x !== undefined && pos.y !== undefined) {
-                const w = parseFloat(pos.w || 150);
-                const h = parseFloat(pos.h || 12);
-                const yOffset = parseFloat(pos.yOffsetRect || -2);
-
                 firstPage.drawRectangle({
                     x: parseFloat(pos.x),
-                    y: parseFloat(pos.y) + yOffset,
-                    width: w,
-                    height: h,
+                    y: parseFloat(pos.y) + parseFloat(pos.yOffsetRect || -2),
+                    width: parseFloat(pos.w || 150),
+                    height: parseFloat(pos.h || 12),
                     color: rgb(1, 1, 1),
                 });
             }
@@ -375,16 +392,13 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
             if (key === 'cpf_cnpj') valor = formatarCpfCnpj(valor);
             
             if (pos.x !== undefined && pos.y !== undefined && valor !== "") {
-                const x = parseFloat(pos.x);
-                const y = parseFloat(pos.y);
-                
                 let fontSize = 9;
                 if (valor.length > 20) fontSize = 8;
                 if (valor.length > 30) fontSize = 7;
 
                 firstPage.drawText(valor, {
-                    x: x + parseFloat(pos.offX || 0),
-                    y: y,
+                    x: parseFloat(pos.x) + parseFloat(pos.offX || 0),
+                    y: parseFloat(pos.y),
                     size: fontSize,
                     font: fontBold,
                     color: rgb(0, 0, 0),
@@ -393,18 +407,13 @@ app.post('/api/gerar-final', requireAuth, async (req, res) => {
         });
 
         const pdfBuffer = await pdfDoc.save();
-        
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="CRLV_${dados.placa || 'DOCUMENTO'}.pdf"`);
         res.send(Buffer.from(pdfBuffer));
 
     } catch (error) {
         console.error("Erro crítico:", error);
-        if (error.message.includes('Saldo insuficiente')) {
-            res.status(400).send(error.message);
-        } else {
-            res.status(500).send("Erro interno ao processar o documento PDF.");
-        }
+        res.status(500).send(error.message);
     }
 });
 
@@ -417,13 +426,11 @@ app.get('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
 
 app.post('/api/usuarios', requireAuth, requireAdmin, (req, res) => {
     const { user, pass, role, nome, saldo } = req.body;
-    if (!user || !pass) {
-        return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
-    }
+    if (!user || !pass) return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
+    
     const users = loadUserData();
-    if (users.find(u => u.user === user)) {
-        return res.status(400).json({ error: 'Usuário já existe!' });
-    }
+    if (users.find(u => u.user === user)) return res.status(400).json({ error: 'Usuário já existe!' });
+    
     const newUser = {
         id: users.length + 1,
         user: user,
@@ -445,9 +452,8 @@ app.put('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
     const { user, pass, role, nome, saldo } = req.body;
     const users = loadUserData();
     const index = users.findIndex(u => u.id == id);
-    if (index === -1) {
-        return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
+    if (index === -1) return res.status(404).json({ error: 'Usuário não encontrado' });
+    
     users[index].user = user || users[index].user;
     if (pass) users[index].pass = pass;
     users[index].role = role || users[index].role;
@@ -465,52 +471,26 @@ app.delete('/api/usuarios/:id', requireAuth, requireAdmin, (req, res) => {
         return res.status(400).json({ error: 'Você não pode deletar seu próprio usuário!' });
     }
     const filteredUsers = users.filter(u => u.id != id);
-    if (filteredUsers.length === users.length) {
-        return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
     saveUserData(filteredUsers);
     res.json({ success: true });
-});
-
-// ==================== ADMIN - ESTATÍSTICAS ====================
-const BOT_STATS_FILE = path.join(__dirname, 'data', 'bot_stats.json');
-
-if (!fs.existsSync(BOT_STATS_FILE)) {
-    fs.writeFileSync(BOT_STATS_FILE, JSON.stringify({ vendas: 0, total_faturado: 0, ultimas_vendas: [] }));
-}
-
-app.get('/api/bot/stats', requireAuth, requireAdmin, (req, res) => {
-    const stats = JSON.parse(fs.readFileSync(BOT_STATS_FILE, 'utf8'));
-    res.json(stats);
 });
 
 // ==================== API DE COORDENADAS (CRLV) ====================
 app.get('/api/coords', requireAuth, requireAdmin, (req, res) => {
     const tipo = req.query.tipo || 'moto';
-    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
-    const filePath = path.join(__dirname, 'assets', fileName);
-    
-    if (fs.existsSync(filePath)) {
-        res.json(JSON.parse(fs.readFileSync(filePath, 'utf8')));
-    } else {
-        res.json({});
-    }
+    const filePath = path.join(__dirname, 'assets', tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json');
+    res.json(fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {});
 });
 
 app.post('/api/save-coords', requireAuth, requireAdmin, (req, res) => {
     const tipo = req.query.tipo || 'moto';
-    const fileName = tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json';
-    const assetsPath = path.join(__dirname, 'assets');
-    
-    if (!fs.existsSync(assetsPath)) fs.mkdirSync(assetsPath);
-    
-    const filePath = path.join(assetsPath, fileName);
-    
+    const filePath = path.join(__dirname, 'assets', tipo === 'carro' ? 'modelo_carro.template.json' : 'modelo_moto.template.json');
     try {
+        if (!fs.existsSync(path.dirname(filePath))) fs.mkdirSync(path.dirname(filePath), { recursive: true });
         fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
         res.sendStatus(200);
     } catch (e) {
-        res.status(500).send("Erro ao salvar arquivo de coordenadas.");
+        res.status(500).send("Erro ao salvar coordenadas.");
     }
 });
 
@@ -525,28 +505,21 @@ app.get('/calibrar-rg', requireAuth, requireAdmin, (req, res) => {
 
 app.get('/api/coords-rg', requireAuth, requireAdmin, (req, res) => {
     const filePath = path.join(__dirname, 'assets', 'modelo_rg.template.json');
-    if (fs.existsSync(filePath)) {
-        res.json(JSON.parse(fs.readFileSync(filePath, 'utf8')));
-    } else {
-        res.json({});
-    }
+    res.json(fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {});
 });
 
 app.post('/api/save-coords-rg', requireAuth, requireAdmin, (req, res) => {
     const filePath = path.join(__dirname, 'assets', 'modelo_rg.template.json');
-    const assetsPath = path.join(__dirname, 'assets');
-    
-    if (!fs.existsSync(assetsPath)) fs.mkdirSync(assetsPath);
-
     try {
+        if (!fs.existsSync(path.dirname(filePath))) fs.mkdirSync(path.dirname(filePath), { recursive: true });
         fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
         res.sendStatus(200);
     } catch (e) {
-        res.status(500).send("Erro ao salvar arquivo de coordenadas do RG.");
+        res.status(500).send("Erro ao salvar coordenadas do RG.");
     }
 });
 
-// ==================== ROTAS PROTEGIDAS ====================
+// ==================== ROTAS DE INTERFACE PROTEGIDAS ====================
 app.get('/home', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'home.html'));
 });
@@ -571,14 +544,12 @@ app.get('/bot-admin', requireAuth, requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'bot-admin.html'));
 });
 
-// ==================== LOJA PÚBLICA ====================
 app.get('/loja', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'loja.html'));
 });
 
-// ==================== ROTA RAIZ ====================
 app.get('/', (req, res) => {
-    if (req.session.user) {
+    if (req.session && req.session.user) {
         res.redirect('/home');
     } else {
         res.redirect('/login.html');
@@ -587,15 +558,7 @@ app.get('/', (req, res) => {
 
 // ==================== INICIAR SERVIDOR ====================
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n${'='.repeat(50)}`);
-    console.log(`🚀 SERVIDOR CH VENDAS CORRIGIDO`);
-    console.log(`${'='.repeat(50)}`);
-    console.log(`📍 Local: http://localhost:${PORT}`);
-    console.log(`🔑 Admin: Newbr47 / 88837024`);
-    console.log(`📄 Emissão CRLV: /emissao (R$ 40,00) [Liberado para Admin]`);
-    console.log(`🔍 Consultador: /consultador (R$ 10,00) [Liberado para Admin]`);
-    console.log(`🪪 RG / Calibrador: /gerar-rg e /calibrar-rg`);
-    console.log(`💰 Sistema de carteira: ativo`);
-    console.log(`💳 Novos usuários: saldo R$ 0,00`);
-    console.log(`${'='.repeat(50)}\n`);
+    console.log(`\n==================================================`);
+    console.log(`🚀 SERVIDOR CH VENDAS CORRIGIDO (ANTI-LOOP DE LOGIN)`);
+    console.log(`==================================================\n`);
 });
