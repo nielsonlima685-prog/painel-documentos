@@ -3,32 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calibrador Técnico de Precisão</title>
+    <title>Calibrador Técnico - RG Lado a Lado</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <style>
         body {
             background-color: #0d1117;
             color: #c9d1d9;
             font-family: system-ui, -apple-system, sans-serif;
         }
-        /* Contentor principal que simula o espaço físico do documento */
-        #canvas-documento {
+        /* Container do Canvas com dimensões estritas para o RG */
+        #canvas-wrapper {
             position: relative;
-            width: 740px;  /* Proporção horizontal otimizada para o modelo lado a lado */
+            width: 740px;  
             height: 260px; 
-            background-color: #21262d;
             border: 2px solid #30363d;
             border-radius: 6px;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
+            overflow: hidden;
+            background-color: #1f242c;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
-        /* Estilização corrigida para evitar caixas grandes ou deformadas */
+        /* O canvas onde o PDF será desenhado como imagem de fundo */
+        #pdf-render-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        /* Camada interativa dos blocos por cima do PDF */
+        #camada-blocos {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: auto;
+        }
+        /* Caixas de calibração compactas para não esticar */
         .caixa-arrastavel {
             position: absolute;
-            background-color: rgba(56, 139, 253, 0.3) !important;
+            background-color: rgba(56, 139, 253, 0.35) !important;
             border: 1px solid #58a6ff !important;
             color: #ffffff !important;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-family: monospace;
             font-size: 9px !important;
             font-weight: bold;
             overflow: hidden;
@@ -40,130 +61,169 @@
             cursor: move;
             user-select: none;
             touch-action: none;
-            border-radius: 3px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-            transition: background-color 0.2s, border-color 0.2s;
+            border-radius: 2px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
         }
-        /* Estado quando o bloco é selecionado para ajuste via teclado */
         .caixa-arrastavel.selecionada {
-            background-color: rgba(46, 160, 67, 0.4) !important;
+            background-color: rgba(46, 160, 67, 0.45) !important;
             border: 1px solid #3fb950 !important;
             box-shadow: 0 0 8px rgba(63, 185, 80, 0.6);
-            z-index: 50;
+            z-index: 100;
         }
         .texto-etiqueta {
-            padding: 0 4px;
+            padding: 0 2px;
             pointer-events: none;
         }
     </style>
 </head>
 <body class="p-6">
 
-    <div class="max-w-6xl mx-auto">
+    <div class="max-w-7xl mx-auto">
         <header class="flex justify-between items-center border-b border-gray-800 pb-4 mb-6">
             <div>
-                <h1 class="text-xl font-bold text-white">Ajuste de Layout Dinâmico</h1>
-                <p class="text-xs text-gray-400">Arrasta as etiquetas ou seleciona uma e usa as setas do teclado (↑ ↓ ← →) para ajuste milimétrico.</p>
+                <h1 class="text-xl font-bold text-white">Calibrador Avançado de Modelos</h1>
+                <p class="text-xs text-gray-400">Arraste as tags ou clique em uma e use as setas do teclado (↑ ↓ ← →) para precisão pixel por pixel.</p>
             </div>
             <div id="status-painel" class="text-xs px-3 py-1.5 rounded bg-gray-900 border border-gray-800 text-blue-400 font-mono">
-                Inicializando...
+                Carregando sistemas...
             </div>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div class="lg:col-span-1 bg-gray-900 p-4 rounded-lg border border-gray-800 flex flex-col h-[500px]">
-                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Campos de Dados</h2>
+            <div class="lg:col-span-1 bg-gray-900 p-4 rounded-lg border border-gray-800 flex flex-col h-[520px]">
+                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Mapeamento de Chaves</h2>
                 <div id="lista-campos" class="space-y-2 overflow-y-auto flex-1 pr-1">
                     </div>
             </div>
 
-            <div class="lg:col-span-3 flex flex-col justify-center items-center bg-black p-6 rounded-lg border border-gray-800 min-h-[500px]">
-                <div id="canvas-documento">
-                    </div>
-                <div class="mt-4 flex gap-4 text-xs text-gray-500 font-mono">
-                    <span>🟢 Bloco Verde = Selecionado para Teclado</span>
-                    <span>• Escala ativa baseada em .fields</span>
+            <div class="lg:col-span-3 flex flex-col justify-center items-center bg-black p-4 rounded-lg border border-gray-800 min-h-[520px]">
+                <div id="canvas-wrapper">
+                    <canvas id="pdf-render-canvas"></canvas>
+                    
+                    <div id="camada-blocos"></div>
+                </div>
+                
+                <div class="mt-4 flex gap-6 text-xs text-gray-500 font-mono">
+                    <span>🔵 Arraste com o mouse</span>
+                    <span>🟢 Borda Verde = Ajuste Fino por Setas Ativo</span>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Configura o worker do PDF.js de forma estável via CDN
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
         const urlParams = new URLSearchParams(window.location.search);
         const tipoDocumento = urlParams.get('tipo') || 'rg';
 
-        const canvas = document.getElementById('canvas-documento');
+        const camadaBlocos = document.getElementById('camada-blocos');
         const listaCampos = document.getElementById('lista-campos');
         const statusPainel = document.getElementById('status-painel');
-
+        
         let mapaLayout = {};
         let blocoSelecionado = null;
 
-        // 1. Carregar estrutura do Servidor
-        async function buscarConfiguracao() {
+        // 1. Inicialização: Carrega o arquivo JSON e manda renderizar o PDF de fundo
+        async function inicializarCalibrador() {
             try {
+                // Rota inteligente que você estruturou no server.js
                 const response = await fetch(`/api/coords?tipo=${tipoDocumento}`);
                 mapaLayout = await response.json();
                 
-                statusPainel.innerText = "Configuração carregada com sucesso.";
+                statusPainel.innerText = "Renderizando plano de fundo do PDF...";
+                
+                // Dispara a renderização visual do PDF
+                await renderizarFundoPDF();
+                
+                statusPainel.innerText = "Template e coordenadas sincronizados.";
                 statusPainel.className = "text-xs px-3 py-1.5 rounded bg-gray-900 border border-gray-800 text-green-400 font-mono";
                 
-                renderizarPainel();
+                renderizarAbasCampos();
             } catch (err) {
-                statusPainel.innerText = "Erro ao carregar mapa de dados.";
+                console.error(err);
+                statusPainel.innerText = "Erro ao iniciar mapeamento gráfico.";
                 statusPainel.className = "text-xs px-3 py-1.5 rounded bg-gray-900 border border-gray-800 text-red-400 font-mono";
             }
         }
 
-        // 2. Renderização Corrigida com Filtro de Tamanho
-        function renderizarPainel() {
-            canvas.innerHTML = '';
+        // 2. Mecanismo de Renderização do PDF para Imagem de fundo usando Canvas
+        async function renderizarFundoPDF() {
+            const pdfUrl = `/api/model-pdf?tipo=${tipoDocumento}`;
+            const htmlCanvas = document.getElementById('pdf-render-canvas');
+            const ctx = htmlCanvas.getContext('2d');
+
+            const loadingTask = pdfjsLib.getDocument(pdfUrl);
+            const pdf = await loadingTask.promise;
+            const page = await pdf.getPage(1); // Pega a folha 1 do documento
+
+            // Captura as dimensões exatas do wrapper para forçar o PDF a se esticar nela
+            const wrapper = document.getElementById('canvas-wrapper');
+            const viewport = page.getViewport({ scale: 1 });
+
+            // Força a resolução interna do canvas a bater com os 740x260 pixels reais
+            htmlCanvas.width = wrapper.clientWidth;
+            htmlCanvas.height = wrapper.clientHeight;
+
+            const renderContext = {
+                canvasContext: ctx,
+                viewport: page.getViewport({ 
+                    scale: wrapper.clientWidth / viewport.width 
+                })
+            };
+
+            await page.render(renderContext).promise;
+        }
+
+        // 3. Desenhar os blocos e a listagem lateral baseado na estrutura .fields
+        function renderizarAbasCampos() {
+            camadaBlocos.innerHTML = '';
             listaCampos.innerHTML = '';
 
-            // Garante o acesso à propriedade interna 'fields' se o JSON estiver encapsulado
             const campos = mapaLayout.fields || mapaLayout;
 
             Object.keys(campos).forEach(chave => {
-                const configCampo = campos[chave];
-                if (configCampo.x === undefined || configCampo.y === undefined) return;
+                const config = campos[chave];
+                if (config.x === undefined || config.y === undefined) return;
 
-                // Encurta visualmente strings longas para não quebrar a caixa no ecrã
-                const rotuloVisivel = chave.replace('frente_', 'F_').replace('verso_', 'V_').toUpperCase();
+                // Reduz rótulo longo para não esticar a caixinha na tela
+                const tagCurta = chave.replace('frente_', 'F_').replace('verso_', 'V_').toUpperCase();
 
-                // Criar Bloco Arrastável
+                // Cria o marcador físico sobre o documento
                 const bloco = document.createElement('div');
                 bloco.className = 'caixa-arrastavel';
                 bloco.id = `bloco-${chave}`;
                 bloco.setAttribute('data-key', chave);
-                bloco.innerHTML = `<span class="texto-etiqueta">${rotuloVisivel}</span>`;
+                bloco.innerHTML = `<span class="texto-etiqueta">${tagCurta}</span>`;
                 
-                // Define limites visuais estritos para evitar distorções
-                bloco.style.width = `${configCampo.w || 90}px`;
-                bloco.style.height = `${configCampo.h || 14}px`;
-                bloco.style.left = `${configCampo.x}px`;
-                bloco.style.top = `${configCampo.y}px`;
+                // Aplica tamanhos fixos estruturados
+                bloco.style.width = `${config.w || 95}px`;
+                bloco.style.height = `${config.h || 14}px`;
+                bloco.style.left = `${config.x}px`;
+                bloco.style.top = `${config.y}px`;
 
-                canvas.appendChild(bloco);
+                camadaBlocos.appendChild(bloco);
 
-                // Criar Item na Lista Lateral
+                // Injeta linha correspondente na esquerda
                 const item = document.createElement('div');
-                item.className = 'bg-gray-950 p-2.5 rounded border border-gray-800 text-xs flex flex-col gap-1 hover:border-gray-700 cursor-pointer';
-                item.onclick = () => focarBloco(bloco);
+                item.className = 'bg-gray-950 p-2 rounded border border-gray-800 text-xs flex flex-col gap-0.5 hover:border-gray-700 cursor-pointer';
+                item.onclick = () => focarElemento(bloco);
                 item.innerHTML = `
                     <div class="flex justify-between items-center">
-                        <span class="font-bold text-gray-300 font-mono break-all pr-1">${chave}</span>
-                        <span id="txt-coord-${chave}" class="text-blue-400 font-mono font-bold whitespace-nowrap">X:${configCampo.x} Y:${configCampo.y}</span>
+                        <span class="font-bold text-gray-300 font-mono truncate max-w-[120px]">${chave}</span>
+                        <span id="coord-txt-${chave}" class="text-blue-400 font-mono font-bold">X:${config.x} Y:${config.y}</span>
                     </div>
-                    <span class="text-[10px] text-gray-500 italic truncate">${configCampo.description || 'Sem descrição.'}</span>
+                    <span class="text-[10px] text-gray-500 truncate">${config.description || ''}</span>
                 `;
                 listaCampos.appendChild(item);
             });
 
-            configurarInteracao();
+            ativarArrastoFisico();
         }
 
-        // 3. Ativação do Drag & Drop via Interact.js
-        function configurarInteracao() {
+        // 4. Ativar movimentação livre com Interact.js
+        function activarArrastoFisico() {
             interact('.caixa-arrastavel').draggable({
                 inertia: false,
                 modifiers: [
@@ -175,7 +235,7 @@
                 autoScroll: false,
                 listeners: {
                     start(event) {
-                        focarBloco(event.target);
+                        focarElemento(event.target);
                     },
                     move(event) {
                         const target = event.target;
@@ -190,8 +250,8 @@
                         target.style.left = `${x}px`;
                         target.style.top = `${y}px`;
 
-                        const displayCoord = document.getElementById(`txt-coord-${chave}`);
-                        if (displayCoord) displayCoord.innerText = `X:${Math.round(x)} Y:${Math.round(y)}`;
+                        const txt = document.getElementById(`coord-txt-${chave}`);
+                        if (txt) txt.innerText = `X:${Math.round(x)} Y:${Math.round(y)}`;
                     },
                     end(event) {
                         const target = event.target;
@@ -199,29 +259,26 @@
                         const xFinal = Math.round(parseFloat(target.style.left));
                         const yFinal = Math.round(parseFloat(target.style.top));
 
-                        persistirCoordenada(chave, xFinal, yFinal);
+                        salvarNoServidor(chave, xFinal, yFinal);
                     }
                 }
             });
         }
 
-        // 4. Seleção e Foco de Elementos
-        function focarBloco(elemento) {
-            if (blocoSelecionado) {
-                blocoSelecionado.classList.remove('selecionada');
-            }
-            blocoSelecionado = elemento;
+        function focarElemento(el) {
+            if (blocoSelecionado) blocoSelecionado.classList.remove('selecionada');
+            blocoSelecionado = el;
             blocoSelecionado.classList.add('selecionada');
         }
 
-        // 5. Mecânica de Ajuste Fino por Teclado (Setas)
+        // 5. Ajuste fino milimétrico com as setas do teclado
         document.addEventListener('keydown', (e) => {
             if (!blocoSelecionado) return;
 
             const setas = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
             if (!setas.includes(e.key)) return;
 
-            e.preventDefault(); // Impede o scroll da janela externa
+            e.preventDefault();
 
             let x = Math.round(parseFloat(blocoSelecionado.style.left)) || 0;
             let y = Math.round(parseFloat(blocoSelecionado.style.top)) || 0;
@@ -235,51 +292,49 @@
             blocoSelecionado.style.left = `${x}px`;
             blocoSelecionado.style.top = `${y}px`;
 
-            const displayCoord = document.getElementById(`txt-coord-${chave}`);
-            if (displayCoord) displayCoord.innerText = `X:${x} Y:${y}`;
+            const txt = document.getElementById(`coord-txt-${chave}`);
+            if (txt) txt.innerText = `X:${x} Y:${y}`;
 
-            persistirCoordenada(chave, x, y);
+            salvarNoServidor(chave, x, y);
         });
 
-        // 6. Enviar Alteração para o Backend de Forma Segura
-        async function persistirCoordenada(chave, x, y) {
-            statusPainel.innerText = `Atualizando ${chave}...`;
+        // 6. Enviar alterações em tempo real para a rota inteligente do server.js
+        async function salvarNoServidor(chave, x, y) {
+            statusPainel.innerText = `Sincronizando ${chave}...`;
             statusPainel.className = "text-xs px-3 py-1.5 rounded bg-gray-900 border border-gray-800 text-yellow-500 font-mono";
 
             try {
                 const camposOriginais = mapaLayout.fields || mapaLayout;
-                const largura = camposOriginais[chave]?.w || 90;
-                const altura = camposOriginais[chave]?.h || 14;
+                const w = camposOriginais[chave]?.w || 95;
+                const h = camposOriginais[chave]?.h || 14;
                 const desc = camposOriginais[chave]?.description || '';
 
-                const urlDestino = tipoDocumento === 'rg' ? '/api/save-coords-rg' : `/api/save-coords?tipo=${tipoDocumento}`;
-
-                const response = await fetch(urlDestino, {
+                // Envia direto para a sua rota unificada respeitando o tipo pela query string
+                const response = await fetch(`/api/save-coords?tipo=${tipoDocumento}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        [chave]: { x: x, y: y, w: largura, h: altura, description: desc }
+                        [chave]: { x: x, y: y, w: w, h: h, description: desc }
                     })
                 });
 
                 if (response.ok) {
-                    statusPainel.innerText = "Modificações guardadas.";
+                    statusPainel.innerText = "Alteração salva.";
                     statusPainel.className = "text-xs px-3 py-1.5 rounded bg-gray-900 border border-gray-800 text-green-400 font-mono";
                     
-                    // Sincroniza o estado em memória local
                     if (mapaLayout.fields) {
-                        mapaLayout.fields[chave] = { x: x, y: y, w: largura, h: altura, description: desc };
+                        mapaLayout.fields[chave] = { x: x, y: y, w: w, h: h, description: desc };
                     } else {
-                        mapaLayout[chave] = { x: x, y: y, w: largura, h: altura, description: desc };
+                        mapaLayout[chave] = { x: x, y: y, w: w, h: h, description: desc };
                     }
                 }
             } catch (err) {
-                statusPainel.innerText = "Erro ao sincronizar dados.";
+                statusPainel.innerText = "Erro ao conectar com a API.";
                 statusPainel.className = "text-xs px-3 py-1.5 rounded bg-gray-900 border border-gray-800 text-red-400 font-mono";
             }
         }
 
-        window.onload = buscarConfiguracao;
+        window.onload = inicializarCalibrador;
     </script>
 </body>
 </html>
