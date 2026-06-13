@@ -1,0 +1,20 @@
+{
+  "template_name": "RG Modelo 2020 Lado a Lado",
+  "pdf_reference": "template_rg.pdf",
+  "fields": {
+    "frente_estado": { "x": 0, "y": 0, "description": "Ex: ESTADO DE SÃO PAULO" },
+    "frente_secretaria": { "x": 0, "y": 0, "description": "Ex: SECRETARIA DA SEGURANÇA PÚBLICA" },
+    "frente_nome": { "x": 0, "y": 0, "description": "Nome completo do cidadão" },
+    "frente_filiacao_pai": { "x": 0, "y": 0, "description": "Nome do Pai" },
+    "frente_filiacao_mae": { "x": 0, "y": 0, "description": "Nome da Mãe" },
+    "frente_data_nascimento": { "x": 0, "y": 0, "description": "DD/MM/AAAA" },
+    "frente_naturalidade": { "x": 0, "y": 0, "description": "Cidade e UF de nascimento" },
+    "frente_orgao_expedidor": { "x": 0, "y": 0, "description": "Ex: SSP-SP" },
+    
+    "verso_rg_numero": { "x": 0, "y": 0, "description": "Número do RG com dígito" },
+    "verso_cpf": { "x": 0, "y": 0, "description": "Número do CPF" },
+    "verso_data_expedicao": { "x": 0, "y": 0, "description": "Data que o RG foi emitido" },
+    "verso_doc_origem": { "x": 0, "y": 0, "description": "Registro Civil (Certidão de Nasc/Casamento)" },
+    "verso_pis_pasep": { "x": 0, "y": 0, "description": "Número do PIS/PASEP (se houver)" }
+  }
+}
