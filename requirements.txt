@@ -5,3 +5,4 @@ onnxruntime
 numpy
 pillow
 flask
+flask-cors
