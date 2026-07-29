@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CH Bicos - Comparador Facial Progressivo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 950px;
+            background: #1e1e1e;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+        }
+        h2 { text-align: center; color: #00ffcc; margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #ccc; }
+        select, input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #2d2d2d;
+            color: #fff;
+            box-sizing: border-box;
+        }
+        button.action-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: none;
+            background: #00ffcc;
+            color: #121212;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button.action-btn:hover { background: #00b399; }
+        
+        #resultado {
+            margin-top: 25px;
+            display: none;
+        }
+        .success-title { color: #00ffcc; margin-bottom: 15px; text-align: center; font-weight: bold; }
+        
+        .grid-bicos {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .match-card {
+            background: #2d2d2d;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #00ffcc;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .card-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .match-thumb {
+            width: 60px;
+            height: 60px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 1px solid #444;
+            background: #111;
+        }
+        .match-details {
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        .match-info {
+            font-size: 13px;
+            color: #ccc;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .match-score {
+            font-size: 16px;
+            color: #00ffcc;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+        .download-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .dl-btn {
+            flex: 1;
+            padding: 6px;
+            background: #333;
+            color: #00ffcc;
+            border: 1px solid #00ffcc;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+        }
+        .dl-btn:hover {
+            background: #00ffcc;
+            color: #121212;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .pagination button {
+            padding: 8px 16px;
+            background: #333;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .pagination button:hover:not(:disabled) { background: #00ffcc; color: #121212; }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pagination span { font-weight: bold; color: #ccc; }
+
+        .loading { color: #ffcc00; text-align: center; font-weight: bold; }
+        .error { color: #ff4d4d; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>CH Bicos - Comparador Progressivo (Lotes)</h2>
+    
+    <div class="form-group">
+        <label for="categoria">Categoria / Filtro:</label>
+        <select id="categoria">
+            <option value="HOMEM">Homem (Geral)</option>
+            <option value="MULHER">Mulher (Geral)</option>
+            <option value="HOMEM_B">Homem - CNH B (Carro)</option>
+            <option value="HOMEM_A">Homem - CNH A (Moto)</option>
+            <option value="MULHER_B">Mulher - CNH B (Carro)</option>
+            <option value="MULHER_A">Mulher - CNH A (Moto)</option>
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label for="fotoCliente">1. Envie a Foto da Selfie (Alvo):</label>
+        <input type="file" id="fotoCliente" accept="image/*">
+    </div>
+
+    <div class="form-group">
+        <label for="pastaBicos">2. Envie os Bicos (Pode selecionar 500+ arquivos):</label>
+        <input type="file" id="pastaBicos" accept="image/*" multiple>
+    </div>
+
+    <button class="action-btn" onclick="processarEmLotes()">Processar Comparação em Lotes</button>
+
+    <div id="resultado"></div>
+</div>
+
+<script>
+    let todosResultados = [];
+    let mapaArquivosFiles = {};
+    let mapaObjectUrls = {}; 
+    let paginaAtual = 1;
+    const itensPorPagina = 20;
+
+    async function processarEmLotes() {
+        const inputFoto = document.getElementById('fotoCliente');
+        const inputBicos = document.getElementById('pastaBicos');
+        const resultadoDiv = document.getElementById('resultado');
+        const categoria = document.getElementById('categoria').value;
+
+        if (inputFoto.files.length === 0) {
+            alert('Por favor, selecione a foto da selfie!');
+            return;
+        }
+
+        if (inputBicos.files.length === 0) {
+            alert('Por favor, selecione os arquivos de bicos!');
+            return;
+        }
+
+        resultadoDiv.style.display = 'block';
+        resultadoDiv.innerHTML = `<p class="loading">🔍 Iniciando processamento em lotes otimizados...</p>`;
+
+        todosResultados = [];
+        mapaArquivosFiles = {};
+        mapaObjectUrls = {};
+
+        const arquivos = Array.from(inputBicos.files);
+        const tamanhoLote = 100; // Processa de 100 em 100 para não travar
+        const totalLotes = Math.ceil(arquivos.length / tamanhoLote);
+
+        for (let i = 0; i < arquivos.length; i++) {
+            const file = arquivos[i];
+            mapaArquivosFiles[file.name] = file;
+            mapaObjectUrls[file.name] = URL.createObjectURL(file);
+        }
+
+        for (let loteIndex = 0; loteIndex < totalLotes; loteIndex++) {
+            const inicio = loteIndex * tamanhoLote;
+            const fim = Math.min(inicio + tamanhoLote, arquivos.length);
+            const loteAtual = arquivos.slice(inicio, fim);
+
+            resultadoDiv.innerHTML = `<p class="loading">⏳ Processando lote ${loteIndex + 1} de ${totalLotes} (${fim}/${arquivos.length} bicos analisados)...</p>`;
+
+            const formData = new FormData();
+            formData.append('foto', inputFoto.files[0]);
+            loteAtual.forEach(file => formData.append('bicos', file));
+
+            try {
+                const response = await fetch('http://127.0.0.1:5000/compare_protected', {
+                    method: 'POST',
+                    headers: { 'categoria': categoria },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.resultados) {
+                    // Adiciona os novos resultados encontrados
+                    todosResultados.push(...data.resultados);
+                    
+                    // Ordena sempre do maior para o menor em % de similaridade global
+                    todosResultados.sort((a, b) => b.similaridade - a.similaridade);
+                    
+                    // Renderiza imediatamente a primeira página atualizada com as maiores %
+                    paginaAtual = 1;
+                    renderizarPagina(true);
+                }
+            } catch (error) {
+                console.error(`Erro no lote ${loteIndex + 1}:`, error);
+            }
+        }
+
+        if (todosResultados.length === 0) {
+            resultadoDiv.innerHTML = `<p style="text-align: center; color: #ffcc00;">⚠️ Nenhum rosto compatível encontrado com os filtros atuais.</p>`;
+        }
+    }
+
+    function baixarTxt(nomeArquivo) {
+        const nomeBase = nomeArquivo.substring(0, nomeArquivo.lastIndexOf('.')) || nomeArquivo;
+        const conteudoTxt = `Dados do Bico correspondente: ${nomeArquivo}\nStatus: Aprovado por Similaridade Facial\nData de verificação: ${new Date().toLocaleDateString()}`;
+        
+        const blob = new Blob([conteudoTxt], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${nomeBase}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function renderizarPagina(emProgresso = false) {
+        const resultadoDiv = document.getElementById('resultado');
+        const inicio = (paginaAtual - 1) * itensPorPagina;
+        const fim = inicio + itensPorPagina;
+        const itensPagina = todosResultados.slice(inicio, fim);
+        const totalPaginas = Math.max(1, Math.ceil(todosResultados.length / itensPorPagina));
+
+        let html = `
+            <p class="success-title">✅ ${todosResultados.length} Correspondências Encontradas (Página ${paginaAtual} de ${totalPaginas}):</p>
+            <div class="grid-bicos">
+        `;
+
+        if (itensPagina.length === 0) {
+            html += `<p style="color: #aaa; grid-column: 1/-1; text-align: center;">Carregando melhores correspondências...</p>`;
+        }
+
+        itensPagina.forEach((match, index) => {
+            const numeroGlobal = inicio + index + 1;
+            const nomeArquivo = match.caminho;
+            
+            let thumbUrl = '';
+            if (mapaObjectUrls[nomeArquivo]) {
+                thumbUrl = mapaObjectUrls[nomeArquivo];
+            } else {
+                const pastaDir = match.caminho_absoluto.substring(0, match.caminho_absoluto.lastIndexOf('\\'));
+                thumbUrl = `http://127.0.0.1:5000/imagens/${encodeURIComponent(nomeArquivo)}?dir=${encodeURIComponent(pastaDir)}`;
+            }
+
+            let downloadImgUrl = thumbUrl;
+            if (mapaArquivosFiles[nomeArquivo]) {
+                downloadImgUrl = mapaObjectUrls[nomeArquivo];
+            }
+
+            html += `
+                <div class="match-card">
+                    <div class="card-top">
+                        <img src="${thumbUrl}" class="match-thumb" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'60\' height=\'60\'><rect width=\'100%\' height=\'100%\' fill=\'%23222\'/><text x=\'50%\' y=\'50%\' fill=\'%23777\' font-size=\'10\' text-anchor=\'middle\' dominant-baseline=\'middle\'>Sem Foto</text></svg>'">
+                        <div class="match-details">
+                            <div class="match-info" title="${nomeArquivo}">
+                                <span style="color: #00ffcc; font-weight: bold;">#${numeroGlobal}</span> ${nomeArquivo}
+                            </div>
+                            <div class="match-score">
+                                ${match.similaridade}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="download-actions">
+                        <a href="${downloadImgUrl}" download="${nomeArquivo}" class="dl-btn">📥 Baixar Imagem</a>
+                        <button onclick="baixarTxt('${nomeArquivo}')" class="dl-btn">📄 Baixar .TXT</button>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+
+        html += `
+            <div class="pagination">
+                <button onclick="mudarPagina(-1)" ${paginaAtual === 1 ? 'disabled' : ''}>⬅️ Anterior</button>
+                <span>Página ${paginaAtual} de ${totalPaginas}</span>
+                <button onclick="mudarPagina(1)" ${paginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ➡️</button>
+            </div>
+        `;
+
+        resultadoDiv.innerHTML = html;
+    }
+
+    function mudarPagina(direcao) {
+        const totalPaginas = Math.ceil(todosResultados.length / itensPorPagina);
+        paginaAtual += direcao;
+        if (paginaAtual < 1) paginaAtual = 1;
+        if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
+        renderizarPagina();
+        window.scrollTo({ top: 300, behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>

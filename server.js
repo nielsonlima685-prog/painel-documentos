@@ -250,7 +250,6 @@ if (!fs.existsSync(BOT_STATS_FILE)) {
     fs.writeFileSync(BOT_STATS_FILE, JSON.stringify({ vendas: 0, total_faturado: 0, ultimas_vendas: [] }));
 }
 
-// Endpoint para gerar PIX
 app.post('/api/bot/gerar-pix', requireAuth, requireAdmin, async (req, res) => {
     const { valor, descricao } = req.body;
     
@@ -275,7 +274,6 @@ app.post('/api/bot/gerar-pix', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
-// Endpoint para verificar pagamento
 app.get('/api/bot/verificar-pagamento/:id', requireAuth, requireAdmin, async (req, res) => {
     try {
         const response = await payment.get({ id: req.params.id });
@@ -301,15 +299,12 @@ app.get('/api/bot/verificar-pagamento/:id', requireAuth, requireAdmin, async (re
     }
 });
 
-// Endpoint para estatísticas do bot
 app.get('/api/bot/stats', requireAuth, requireAdmin, (req, res) => {
     const stats = JSON.parse(fs.readFileSync(BOT_STATS_FILE, 'utf8'));
     res.json(stats);
 });
 
 // ==================== INTEGRAÇÃO COM BOT LOCAL (via ngrok) ====================
-
-// Buscar bicos do bot local
 app.get('/api/bicos-remotos', requireAuth, async (req, res) => {
     try {
         const response = await fetch(`${BOT_API_URL}/api/bicos`);
@@ -321,7 +316,6 @@ app.get('/api/bicos-remotos', requireAuth, async (req, res) => {
     }
 });
 
-// Publicar bico no bot local (apenas admin)
 app.post('/api/bicos-remotos', requireAuth, requireAdmin, async (req, res) => {
     try {
         const response = await fetch(`${BOT_API_URL}/api/bicos`, {
@@ -337,7 +331,6 @@ app.post('/api/bicos-remotos', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
-// Enviar mensagem para o bot processar
 app.post('/api/bot/mensagem', requireAuth, async (req, res) => {
     try {
         const response = await fetch(`${BOT_API_URL}/api/bot/mensagem`, {
@@ -353,7 +346,6 @@ app.post('/api/bot/mensagem', requireAuth, async (req, res) => {
     }
 });
 
-// Buscar respostas do bot
 app.get('/api/bot/respostas/:sessionId', requireAuth, async (req, res) => {
     try {
         const response = await fetch(`${BOT_API_URL}/api/bot/respostas/${req.params.sessionId}`);
@@ -365,7 +357,6 @@ app.get('/api/bot/respostas/:sessionId', requireAuth, async (req, res) => {
     }
 });
 
-// Verificar status do bot local
 app.get('/api/bot-status', requireAuth, async (req, res) => {
     try {
         const response = await fetch(`${BOT_API_URL}/api/bot/status`);
@@ -419,6 +410,15 @@ app.get('/emissao', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'emissao.html'));
 });
 
+app.get('/gerar-rg', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'gerar-rg.html'));
+});
+
+// Rota do Comparador Facial adicionada
+app.get('/facial', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'private', 'facial.html'));
+});
+
 app.get('/calibrar', requireAuth, requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'index.html'));
 });
@@ -443,7 +443,23 @@ app.get('/chat-bot', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'private', 'chat-bot.html'));
 });
 
-// ==================== ROTA DE GERAÇÃO DE PDF ====================
+// ==================== ROTA DE GERAÇÃO DE RG ====================
+app.post('/api/gerar-rg', requireAuth, async (req, res) => {
+    try {
+        const dados = req.body;
+        console.log(`[GERAR-RG] Dados recebidos:`, dados);
+        res.json({
+            success: true,
+            mensagem: 'RG processado com sucesso!',
+            dados: dados
+        });
+    } catch (error) {
+        console.error("Erro crítico ao gerar RG:", error);
+        res.status(500).json({ error: "Erro interno ao processar o RG." });
+    }
+});
+
+// ==================== ROTA DE GERAÇÃO DE PDF (CRLV) ====================
 function formatarCpfCnpj(valor) {
     const limpo = valor.replace(/\D/g, '');
     if (limpo.length === 11) {
@@ -555,6 +571,8 @@ app.listen(PORT, () => {
     console.log(`📍 Local: http://localhost:${PORT}`);
     console.log(`🔑 Admin: Newbr47 / 88837024`);
     console.log(`📄 Emissão CRLV: /emissao`);
+    console.log(`🪪 Emissão RG: /gerar-rg`);
+    console.log(`👤 Comparador Facial: /facial`);
     console.log(`🔍 Consultador: /consultador`);
     console.log(`👥 Usuários: /usuarios`);
     console.log(`🤖 Bot de Bicos: /bicos`);
