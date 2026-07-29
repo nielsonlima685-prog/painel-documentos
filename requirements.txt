@@ -4,3 +4,4 @@ insightface
 onnxruntime
 numpy
 pillow
+flask
